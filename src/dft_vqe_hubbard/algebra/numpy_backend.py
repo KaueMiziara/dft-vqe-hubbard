@@ -1,0 +1,128 @@
+from typing import override
+
+import numpy as np
+
+from .operator_backend import OperatorBackend
+
+
+class NumpyBackend(OperatorBackend[np.ndarray]):
+    """
+    Concrete implementation of OperatorBackend using NumPy dense arrays.
+    """
+
+    @override
+    def get_identity(self, dimension: int = 2) -> np.ndarray:
+        """Generates an identity matrix of the specified dimension using numpy.
+
+        Args:
+            dimension: The size of the square matrix. Defaults to 2.
+
+        Returns:
+            np.ndarray: A complex128 identity matrix of shape (dimension, dimension).
+        """
+        return np.eye(dimension, dtype=complex)
+
+    @override
+    def get_pauli_x(self) -> np.ndarray:
+        """Generates the 2x2 Pauli-X matrix.
+
+        Returns:
+            np.ndarray: A 2x2 complex128 array [[0, 1], [1, 0]].
+        """
+        return np.array(
+            [
+                [0, 1],
+                [1, 0],
+            ],
+            dtype=complex,
+        )
+
+    @override
+    def get_pauli_y(self) -> np.ndarray:
+        """Generates the 2x2 Pauli-Y matrix.
+
+        Returns:
+            np.ndarray: A 2x2 complex128 array [[0, -1j], [1j, 0]].
+        """
+        return np.array(
+            [
+                [0, -1j],
+                [1j, 0],
+            ],
+            dtype=complex,
+        )
+
+    @override
+    def get_pauli_z(self) -> np.ndarray:
+        """Generates the 2x2 Pauli-Z matrix.
+
+        Returns:
+            np.ndarray: A 2x2 complex128 array [[1, 0], [0, -1]].
+        """
+        return np.array(
+            [
+                [1, 0],
+                [0, -1],
+            ],
+            dtype=complex,
+        )
+
+    @override
+    def kronecker_product(self, matrices: list[np.ndarray]) -> np.ndarray:
+        """Computes the cumulative Kronecker product using np.kron.
+
+        Args:
+            matrices: A list of numpy arrays.
+
+        Returns:
+            np.ndarray: The resulting tensor product array.
+
+        Raises:
+            ValueError: If the list is empty.
+        """
+        if not matrices:
+            raise ValueError("List of matrices cennot be empty.")
+
+        result = matrices[0]
+        for matrix in matrices[1:]:
+            result = np.kron(result, matrix)
+
+        return result
+
+    @override
+    def matrix_add(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+        """Computes element-wise addition using np.add.
+
+        Args:
+            a: First numpy array.
+            b: Second numpy array.
+
+        Returns:
+            np.ndarray: Sum of the arrays.
+        """
+        return np.add(a, b)
+
+    @override
+    def matrix_scale(self, matrix: np.ndarray, scalar: complex) -> np.ndarray:
+        """Multiplies matrix by a scalar.
+
+        Args:
+            matrix: Input numpy array.
+            scalar: Complex or float scalar.
+
+        Returns:
+            np.ndarray: Scaled array.
+        """
+        return matrix * scalar
+
+    @override
+    def adjoint(self, matrix: np.ndarray) -> np.ndarray:
+        """Computes the conjugate transpose.
+
+        Args:
+            matrix: Input numpy array.
+
+        Returns:
+            np.ndarray: The conjugate transpose (Hermitian) of the input.
+        """
+        return matrix.conj().T
