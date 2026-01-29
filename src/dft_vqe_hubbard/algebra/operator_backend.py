@@ -1,55 +1,105 @@
 from abc import ABC, abstractmethod
-from typing import Any
 
 
-class OperatorBackend(ABC):
+class OperatorBackend[MatrixType](ABC):
     """
     Abstract Class defining the low-level linear algebra operations required
     to construct quantum operators.
-
-    This adheres to the Dependency Injection principle, allowing us to swap
-    the underlying math engine without changing the high-level physics logic.
     """
 
     @abstractmethod
-    def get_identity(self, dimension: int = 2) -> Any:
-        """Returns the Identity matrix of size (dimension x dimension)."""
-        pass
-
-    @abstractmethod
-    def get_pauli_x(self) -> Any:
-        """Returns the 2x2 Pauli-X matrix (bit-flip)."""
-        pass
-
-    @abstractmethod
-    def get_pauli_y(self) -> Any:
-        """Returns the 2x2 Pauli-Y matrix."""
-        pass
-
-    @abstractmethod
-    def get_pauli_z(self) -> Any:
-        """Returns the 2x2 Pauli-Z matrix (phase-flip)."""
-        pass
-
-    @abstractmethod
-    def kronecker_product(self, matrices: list[Any]) -> Any:
+    def get_identity(self, dimension: int = 2) -> MatrixType:
         """
-        Computes the cumulative Kronecker (Tensor) product of a list of matrices.
-        result = A (x) B (x) C ...
+        Generates the Identity matrix of a specified dimension.
+
+        Args:
+            dimension (int): The size of the square matrix (dimension x dimension).
+                             Defaults to 2 (single qubit).
+
+        Returns:
+            MatrixType: A square identity matrix of size `dimension`.
         """
         pass
 
     @abstractmethod
-    def matrix_add(self, a: Any, b: Any) -> Any:
-        """Computes A + B."""
+    def get_pauli_x(self) -> MatrixType:
+        """Generates the 2x2 Pauli-X matrix (bit-flip).
+
+        Returns:
+            MatrixType: The matrix [[0, 1], [1, 0]].
+        """
         pass
 
     @abstractmethod
-    def matrix_scale(self, matrix: Any, scalar: complex) -> Any:
-        """Computes scalar * A."""
+    def get_pauli_y(self) -> MatrixType:
+        """Generates the 2x2 Pauli-Y matrix.
+
+        Returns:
+            MatrixType: The matrix [[0, -1j], [1j, 0]].
+        """
         pass
 
     @abstractmethod
-    def adjoint(self, matrix: Any) -> Any:
-        """Computes the conjugate transpose (Hermitian adjoint) of the matrix."""
+    def get_pauli_z(self) -> MatrixType:
+        """Generates the 2x2 Pauli-Z matrix (phase-flip).
+
+        Returns:
+            MatrixType: The matrix [[1, 0], [0, -1]].
+        """
+        pass
+
+    @abstractmethod
+    def kronecker_product(self, matrices: list[MatrixType]) -> MatrixType:
+        """Computes the cumulative Kronecker (Tensor) product of a list of matrices.
+
+        Mathematically equivalent to: A ⊗ B ⊗ C ...
+
+        Args:
+            matrices: A list of matrices to be sequentially tensor-multiplied.
+
+        Returns:
+            MatrixType: The resulting large matrix with dimension equal to the
+                        product of the input dimensions.
+
+        Raises:
+            ValueError: If the input list `matrices` is empty.
+        """
+        pass
+
+    @abstractmethod
+    def matrix_add(self, a: MatrixType, b: MatrixType) -> MatrixType:
+        """Computes the element-wise sum of two matrices.
+
+        Args:
+            a: The first matrix.
+            b: The second matrix.
+
+        Returns:
+            MatrixType: The result of A + B.
+        """
+        pass
+
+    @abstractmethod
+    def matrix_scale(self, matrix: MatrixType, scalar: complex) -> MatrixType:
+        """Multiplies a matrix by a scalar value.
+
+        Args:
+            matrix: The input matrix.
+            scalar: The scalar value (can be complex).
+
+        Returns:
+            MatrixType: The result of scalar * A.
+        """
+        pass
+
+    @abstractmethod
+    def adjoint(self, matrix: MatrixType) -> MatrixType:
+        """Computes the Hermitian adjoint (conjugate transpose) of the matrix.
+
+        Args:
+            matrix: The input matrix.
+
+        Returns:
+            MatrixType: The conjugate transpose of the input.
+        """
         pass
