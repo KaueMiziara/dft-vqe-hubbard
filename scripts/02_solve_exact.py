@@ -1,11 +1,11 @@
 import os
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from dft_vqe_hubbard.algebra.numpy_backend import NumpyBackend
 from dft_vqe_hubbard.physics.hamiltonian import FermiHubbardModel
 from dft_vqe_hubbard.physics.jordan_wigner import JordanWignerMapper
+from dft_vqe_hubbard.visualization.plots import plot_mott_transition
 
 if __name__ == "__main__":
     L = 2
@@ -59,34 +59,10 @@ if __name__ == "__main__":
             print(f"  U = {U:.1f} | E0 = {e_ground:.4f} | <D> = {d_val:.2f}")
 
     os.makedirs("plots", exist_ok=True)
-    fig, ax1 = plt.subplots(figsize=(10, 6))
-
-    color = "tab:blue"
-    ax1.set_xlabel("Interaction Strength (U/t)")
-    ax1.set_ylabel("Ground State Energy ($E_0$)", color=color)
-    ax1.plot(u_values, energies, color=color, marker="o", label="$E_0$ (Exact)")
-    ax1.tick_params(axis="y", labelcolor=color)
-    ax1.grid(True, alpha=0.3)
-
-    ax2 = ax1.twinx()
-    color = "tab:red"
-    ax2.set_ylabel(
-        "Double Occupancy ($\\langle n_{\\uparrow} n_{\\downarrow} \\rangle$)",
-        color=color,
-    )
-    ax2.plot(
-        u_values,
+    plot_mott_transition(
+        list(u_values),
+        energies,
         double_occupancies,
-        color=color,
-        marker="s",
-        linestyle="--",
-        label="Double Occ.",
+        save_path="plots/phase2_exact_solution.png",
+        title=f"Hubbard Dimer (L={L}): Mott Transition",
     )
-    ax2.tick_params(axis="y", labelcolor=color)
-
-    plt.title(f"Hubbard Dimer (L={L}): Mott Transition")
-    fig.tight_layout()
-
-    output_path = "plots/phase2_exact_solution.png"
-    plt.savefig(output_path, dpi=300)
-    print(f"\nAnalysis Complete. Plot saved to: {output_path}")
