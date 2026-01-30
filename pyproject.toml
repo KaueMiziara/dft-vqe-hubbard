@@ -1,24 +1,18 @@
 [project]
 name = "dft-vqe-hubbard"
 version = "0.1.0"
-description = "Add your description here"
+description = "A bottom-up implementation of Quantum-Enhanced Density Functional Theory (QEDFT) for the Hubbard Model, moving from pure NumPy linear algebra to Variational Quantum Eigensolvers."
 readme = "README.md"
 authors = [{ name = "Kaue Miziara", email = "kauemiziara@gmail.com" }]
 requires-python = ">=3.13"
-dependencies = [
-    "numpy>=2.4.1",
-]
+dependencies = ["numpy>=2.4.1"]
 
 [build-system]
 requires = ["uv_build>=0.9.22,<0.10.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
-dev = [
-    "pre-commit>=4.5.1",
-    "pytest>=9.0.2",
-    "ruff>=0.14.14",
-]
+dev = ["pre-commit>=4.5.1", "pytest>=9.0.2", "ruff>=0.14.14"]
 
 [tool.ruff]
 line-length = 88
