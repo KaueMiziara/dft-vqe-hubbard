@@ -8,6 +8,27 @@ from dft_vqe_hubbard.physics.hamiltonian import FermiHubbardModel
 from dft_vqe_hubbard.physics.jordan_wigner import JordanWignerMapper
 
 
+def get_number_operator(model: FermiHubbardModel, backend: NumpyBackend) -> np.ndarray:
+    """Constructs the Total Number operator N = sum_i n_i."""
+    n_dim = 2**model._n_qubits
+    N_op = backend.get_zero_matrix(n_dim)
+
+    for i in range(model._n_sites):
+        idx_up = model._get_qubit_index(i, 0)
+        c_dag_up = model._mapper.get_fermion_creation_operator(model._n_qubits, idx_up)
+        c_up = model._mapper.get_fermion_annihilation_operator(model._n_qubits, idx_up)
+        n_up = backend.matmul(c_dag_up, c_up)
+
+        idx_dn = model._get_qubit_index(i, 1)
+        c_dag_dn = model._mapper.get_fermion_creation_operator(model._n_qubits, idx_dn)
+        c_dn = model._mapper.get_fermion_annihilation_operator(model._n_qubits, idx_dn)
+        n_dn = backend.matmul(c_dag_dn, c_dn)
+
+        N_op = backend.matrix_add(N_op, backend.matrix_add(n_up, n_dn))
+
+    return N_op
+
+
 def get_double_occupancy_operator(model: FermiHubbardModel) -> np.ndarray:
     """
     Constructs the Double Occupancy operator D = sum_i (n_i_up * n_i_down).
@@ -32,6 +53,7 @@ if __name__ == "__main__":
     double_occupancies = []
 
     d_op = get_double_occupancy_operator(model)
+    N_op = get_number_operator(model, backend)
 
     print(f"Running sweep for U = {u_values[0]} to {u_values[-1]} (t={t})...")
 
@@ -40,13 +62,25 @@ if __name__ == "__main__":
 
         eigenvalues, eigenvectors = np.linalg.eigh(H)
 
-        e_ground = eigenvalues[0]
-        psi_ground = eigenvectors[:, 0]
+        e_ground = None
+        psi_ground = None
+
+        for idx, energy in enumerate(eigenvalues):
+            psi = eigenvectors[:, idx]
+
+            n_expect = np.vdot(psi, backend.matmul(N_op, psi)).real
+
+            if np.isclose(n_expect, 2.0, atol=1e-3):
+                e_ground = energy
+                psi_ground = psi
+                break
+
+        if psi_ground is None:
+            print(f"Warning: No N=2 state found for U={U}")
+            continue
 
         d_psi = backend.matmul(d_op, psi_ground)
-        expectation = np.vdot(psi_ground, d_psi)
-
-        d_val = expectation.real
+        d_val = np.vdot(psi_ground, d_psi).real
 
         energies.append(e_ground)
         double_occupancies.append(d_val)
