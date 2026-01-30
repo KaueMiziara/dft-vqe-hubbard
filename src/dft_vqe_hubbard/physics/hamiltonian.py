@@ -140,7 +140,7 @@ class FermiHubbardModel[MatrixType]:
         n_dim = 2**self._n_qubits
         N_op = self._backend.get_zero_matrix(n_dim)
 
-        for i in range(self._n_qubits):
+        for i in range(self._n_sites):
             idx_up = self._get_qubit_index(i, 0)
             idx_dn = self._get_qubit_index(i, 1)
 
