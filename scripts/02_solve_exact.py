@@ -1,11 +1,9 @@
-import os
-
 import numpy as np
 
 from dft_vqe_hubbard.algebra.numpy_backend import NumpyBackend
 from dft_vqe_hubbard.physics.hamiltonian import FermiHubbardModel
 from dft_vqe_hubbard.physics.jordan_wigner import JordanWignerMapper
-from dft_vqe_hubbard.visualization.plots import plot_mott_transition
+from dft_vqe_hubbard.visualization.plotter import ResultPlotter
 
 if __name__ == "__main__":
     L = 2
@@ -58,11 +56,11 @@ if __name__ == "__main__":
         if U % 2 == 0:
             print(f"  U = {U:.1f} | E0 = {e_ground:.4f} | <D> = {d_val:.2f}")
 
-    os.makedirs("plots", exist_ok=True)
-    plot_mott_transition(
-        list(u_values),
-        energies,
-        double_occupancies,
-        save_path="plots/phase2_exact_solution.png",
+    plotter = ResultPlotter()
+    plotter.plot_mott_transition(
+        u_values=list(u_values),
+        energies=energies,
+        double_occupancies=double_occupancies,
+        filename="phase2_exact_solution.png",
         title=f"Hubbard Dimer (L={L}): Mott Transition",
     )
