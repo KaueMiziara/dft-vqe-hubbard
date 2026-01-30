@@ -51,7 +51,7 @@ class FermiHubbardModel[MatrixType]:
             in the computational basis.
         """
         n_dim = 2**self._n_qubits
-        h_kin = self._backend.matrix_scale(self._backend.get_identity(n_dim), 0.0)
+        h_kin = self._backend.get_zero_matrix(n_dim)
 
         for i, j in self._edges:
             for spin in [0, 1]:
@@ -61,13 +61,10 @@ class FermiHubbardModel[MatrixType]:
                 c_dag_i = self._mapper.get_fermion_creation_operator(self._n_qubits, u)
                 c_j = self._mapper.get_fermion_annihilation_operator(self._n_qubits, v)
 
-                # TODO: implement matmul in backend
-                term_fwd = c_dag_i @ c_j
-
+                term_fwd = self._backend.matmul(c_dag_i, c_j)
                 term_bwd = self._backend.adjoint(term_fwd)
 
                 hopping = self._backend.matrix_add(term_fwd, term_bwd)
-
                 weighted = self._backend.matrix_scale(hopping, -t)
                 h_kin = self._backend.matrix_add(h_kin, weighted)
 
@@ -89,20 +86,19 @@ class FermiHubbardModel[MatrixType]:
             in the computational basis.
         """
         n_dim = 2**self._n_qubits
-        h_int = self._backend.matrix_scale(self._backend.get_identity(n_dim), 0.0)
+        h_int = self._backend.get_zero_matrix(n_dim)
 
         for i in range(self._n_sites):
             idx_up = self._get_qubit_index(i, 0)
             idx_dn = self._get_qubit_index(i, 1)
 
-            # TODO: implement matmul in backend
             c_dag_up = self._mapper.get_fermion_creation_operator(
                 self._n_qubits, idx_up
             )
             c_up = self._mapper.get_fermion_annihilation_operator(
                 self._n_qubits, idx_up
             )
-            n_up = c_dag_up @ c_up
+            n_up = self._backend.matmul(c_dag_up, c_up)
 
             c_dag_dn = self._mapper.get_fermion_creation_operator(
                 self._n_qubits, idx_dn
@@ -110,7 +106,7 @@ class FermiHubbardModel[MatrixType]:
             c_dn = self._mapper.get_fermion_annihilation_operator(
                 self._n_qubits, idx_dn
             )
-            n_dn = c_dag_dn @ c_dn
+            n_dn = self._backend.matmul(c_dag_dn, c_dn)
 
             interaction = n_up @ n_dn
 
