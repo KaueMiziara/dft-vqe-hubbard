@@ -131,6 +131,49 @@ class FermiHubbardModel[MatrixType]:
         h_int = self.construct_interaction_term(penalty)
         return self._backend.matrix_add(h_kin, h_int)
 
+    def construct_total_number_operator(self) -> MatrixType:
+        """Constructs the Total Number operator N = sum_i (n_i_up + n_i_dn).
+
+        Returns:
+            MatrixType: The diagonal matrix counting total electrons in the system.
+        """
+        n_dim = 2**self._n_qubits
+        N_op = self._backend.get_zero_matrix(n_dim)
+
+        for i in range(self._n_qubits):
+            idx_up = self._get_qubit_index(i, 0)
+            idx_dn = self._get_qubit_index(i, 1)
+
+            c_dag_up = self._mapper.get_fermion_creation_operator(
+                self._n_qubits, idx_up
+            )
+            c_up = self._mapper.get_fermion_annihilation_operator(
+                self._n_qubits, idx_up
+            )
+            n_up = self._backend.matmul(c_dag_up, c_up)
+
+            c_dag_dn = self._mapper.get_fermion_creation_operator(
+                self._n_qubits, idx_dn
+            )
+            c_dn = self._mapper.get_fermion_annihilation_operator(
+                self._n_qubits, idx_dn
+            )
+            n_dn = self._backend.matmul(c_dag_dn, c_dn)
+
+            N_op = self._backend.matrix_add(N_op, self._backend.matrix_add(n_up, n_dn))
+
+        return N_op
+
+    def construct_double_occupancy_operator(self) -> MatrixType:
+        """Constructs the Double Occupancy operator D = sum_i (n_i_up * n_i_down).
+
+        This is equivalent to the Interaction Hamiltonian with U=1.
+
+        Returns:
+            MatrixType: The diagonal matrix counting doubly occupied sites.
+        """
+        return self.construct_interaction_term(penalty=1.0)
+
     def _get_qubit_index(self, site_idx: int, spin: int) -> int:
         """Maps a spatial site index and spin projection to a linear qubit index.
 

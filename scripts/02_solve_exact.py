@@ -7,36 +7,6 @@ from dft_vqe_hubbard.algebra.numpy_backend import NumpyBackend
 from dft_vqe_hubbard.physics.hamiltonian import FermiHubbardModel
 from dft_vqe_hubbard.physics.jordan_wigner import JordanWignerMapper
 
-
-def get_number_operator(model: FermiHubbardModel, backend: NumpyBackend) -> np.ndarray:
-    """Constructs the Total Number operator N = sum_i n_i."""
-    n_dim = 2**model._n_qubits
-    N_op = backend.get_zero_matrix(n_dim)
-
-    for i in range(model._n_sites):
-        idx_up = model._get_qubit_index(i, 0)
-        c_dag_up = model._mapper.get_fermion_creation_operator(model._n_qubits, idx_up)
-        c_up = model._mapper.get_fermion_annihilation_operator(model._n_qubits, idx_up)
-        n_up = backend.matmul(c_dag_up, c_up)
-
-        idx_dn = model._get_qubit_index(i, 1)
-        c_dag_dn = model._mapper.get_fermion_creation_operator(model._n_qubits, idx_dn)
-        c_dn = model._mapper.get_fermion_annihilation_operator(model._n_qubits, idx_dn)
-        n_dn = backend.matmul(c_dag_dn, c_dn)
-
-        N_op = backend.matrix_add(N_op, backend.matrix_add(n_up, n_dn))
-
-    return N_op
-
-
-def get_double_occupancy_operator(model: FermiHubbardModel) -> np.ndarray:
-    """
-    Constructs the Double Occupancy operator D = sum_i (n_i_up * n_i_down).
-    We use this to measure how many sites are doubly occupied in the ground state.
-    """
-    return model.construct_interaction_term(penalty=1.0)
-
-
 if __name__ == "__main__":
     L = 2
     t = 1.0
@@ -52,8 +22,8 @@ if __name__ == "__main__":
     energies = []
     double_occupancies = []
 
-    d_op = get_double_occupancy_operator(model)
-    N_op = get_number_operator(model, backend)
+    d_op = model.construct_double_occupancy_operator()
+    N_op = model.construct_total_number_operator()
 
     print(f"Running sweep for U = {u_values[0]} to {u_values[-1]} (t={t})...")
 
