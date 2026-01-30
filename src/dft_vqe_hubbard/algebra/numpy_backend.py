@@ -68,6 +68,18 @@ class NumpyBackend(OperatorBackend[np.ndarray]):
         )
 
     @override
+    def get_zero_matrix(self, dimension: int) -> np.ndarray:
+        """Generates a square zero matrix of the specified dimension.
+
+        Args:
+            dimension: The size of the square matrix.
+
+        Returns:
+            np.ndarray: A matrix filled with zeros.
+        """
+        return np.zeros((dimension, dimension), dtype=complex)
+
+    @override
     def kronecker_product(self, matrices: list[np.ndarray]) -> np.ndarray:
         """Computes the cumulative Kronecker product using np.kron.
 
@@ -126,3 +138,16 @@ class NumpyBackend(OperatorBackend[np.ndarray]):
             np.ndarray: The conjugate transpose (Hermitian) of the input.
         """
         return matrix.conj().T
+
+    @override
+    def matmul(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+        """Computes the matrix product of two matrices.
+
+        Args:
+            a: Left matrix.
+            b: Right matrix.
+
+        Returns:
+            np.ndarray: The result of the multiplication A @ B.
+        """
+        return np.matmul(a, b)

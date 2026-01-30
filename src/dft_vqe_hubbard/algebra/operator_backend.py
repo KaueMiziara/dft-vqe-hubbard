@@ -9,11 +9,10 @@ class OperatorBackend[MatrixType](ABC):
 
     @abstractmethod
     def get_identity(self, dimension: int = 2) -> MatrixType:
-        """
-        Generates the Identity matrix of a specified dimension.
+        """Generates the Identity matrix of a specified dimension.
 
         Args:
-            dimension (int): The size of the square matrix (dimension x dimension).
+            dimension: The size of the square matrix (dimension x dimension).
                              Defaults to 2 (single qubit).
 
         Returns:
@@ -45,6 +44,18 @@ class OperatorBackend[MatrixType](ABC):
 
         Returns:
             MatrixType: The matrix [[1, 0], [0, -1]].
+        """
+        pass
+
+    @abstractmethod
+    def get_zero_matrix(self, dimension: int) -> MatrixType:
+        """Generates a square zero matrix of the specified dimension.
+
+        Args:
+            dimension: The size of the square matrix.
+
+        Returns:
+            MatrixType: A matrix filled with zeros.
         """
         pass
 
@@ -101,5 +112,21 @@ class OperatorBackend[MatrixType](ABC):
 
         Returns:
             MatrixType: The conjugate transpose of the input.
+        """
+        pass
+
+    @abstractmethod
+    def matmul(self, a: MatrixType, b: MatrixType) -> MatrixType:
+        """Computes the matrix product of two matrices.
+
+        This replaces reliance on the native '@' operator, ensuring compatibility
+        with backends that might use different method names.
+
+        Args:
+            a: Left matrix.
+            b: Right matrix.
+
+        Returns:
+            MatrixType: The result of the multiplication A @ B.
         """
         pass
