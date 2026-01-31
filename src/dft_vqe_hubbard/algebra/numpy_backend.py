@@ -151,3 +151,34 @@ class NumpyBackend(OperatorBackend[np.ndarray]):
             np.ndarray: The result of the multiplication A @ B.
         """
         return np.matmul(a, b)
+
+    @override
+    def inner_product(self, a: np.ndarray, b: np.ndarray) -> complex:
+        """Computes the inner product (dot product) of two vectors/matrices.
+
+        Mathematically: <a|b> = a† . b
+
+        Args:
+            a: The "bra" vector (will be conjugated).
+            b: The "ket" vector.
+
+        Returns:
+            complex: The scalar result.
+        """
+        pass
+        return complex(np.vdot(a, b))
+
+    @override
+    def diagonalize(self, matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Diagonalizes a Hermitian matrix.
+
+        Args:
+            matrix: The matrix to diagonalize.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]:
+                - eigenvalues: A list or array of real eigenvalues (sorted).
+                - eigenvectors: The matrix where column 'i' is the eigenvector
+                    for eigenvalue 'i'.
+        """
+        return np.linalg.eigh(matrix)

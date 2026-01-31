@@ -130,3 +130,33 @@ class OperatorBackend[MatrixType](ABC):
             MatrixType: The result of the multiplication A @ B.
         """
         pass
+
+    @abstractmethod
+    def inner_product(self, a: MatrixType, b: MatrixType) -> complex:
+        """Computes the inner product (dot product) of two vectors/matrices.
+
+        Mathematically: <a|b> = a† . b
+
+        Args:
+            a: The "bra" vector (will be conjugated).
+            b: The "ket" vector.
+
+        Returns:
+            complex: The scalar result.
+        """
+        pass
+
+    @abstractmethod
+    def diagonalize(self, matrix: MatrixType) -> tuple[MatrixType, MatrixType]:
+        """Diagonalizes a Hermitian matrix.
+
+        Args:
+            matrix: The matrix to diagonalize.
+
+        Returns:
+            Tuple[Any, MatrixType]:
+                - eigenvalues: A list or array of real eigenvalues (sorted).
+                - eigenvectors: The matrix where column 'i' is the eigenvector
+                    for eigenvalue 'i'.
+        """
+        pass
