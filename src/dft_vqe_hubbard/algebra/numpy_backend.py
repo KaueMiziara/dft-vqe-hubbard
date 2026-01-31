@@ -194,4 +194,4 @@ class NumpyBackend(OperatorBackend[np.ndarray]):
         Returns:
             np.ndarray: The column vector.
         """
-        return matrix[:, col_index]
+        return matrix[:, col_index].copy()
