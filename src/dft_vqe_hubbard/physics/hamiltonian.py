@@ -35,6 +35,16 @@ class FermiHubbardModel[MatrixType]:
         self._n_qubits = 2 * n_sites
         self._edges = edges
 
+    @property
+    def n_qubits(self) -> int:
+        """Returns the total number of qubits (spin-orbitals)."""
+        return self._n_qubits
+
+    @property
+    def n_sites(self) -> int:
+        """Returns the number of spatial sites."""
+        return self._n_sites
+
     def construct_kinetic_term(self, t: float) -> MatrixType:
         """Constructs the Kinetic (Hopping) Hamiltonian matrix.
 
@@ -55,8 +65,8 @@ class FermiHubbardModel[MatrixType]:
 
         for i, j in self._edges:
             for spin in [0, 1]:
-                u = self._get_qubit_index(i, spin)
-                v = self._get_qubit_index(j, spin)
+                u = self.get_qubit_index(i, spin)
+                v = self.get_qubit_index(j, spin)
 
                 c_dag_i = self._mapper.get_fermion_creation_operator(self._n_qubits, u)
                 c_j = self._mapper.get_fermion_annihilation_operator(self._n_qubits, v)
@@ -89,8 +99,8 @@ class FermiHubbardModel[MatrixType]:
         h_int = self._backend.get_zero_matrix(n_dim)
 
         for i in range(self._n_sites):
-            idx_up = self._get_qubit_index(i, 0)
-            idx_dn = self._get_qubit_index(i, 1)
+            idx_up = self.get_qubit_index(i, 0)
+            idx_dn = self.get_qubit_index(i, 1)
 
             c_dag_up = self._mapper.get_fermion_creation_operator(
                 self._n_qubits, idx_up
@@ -141,8 +151,8 @@ class FermiHubbardModel[MatrixType]:
         N_op = self._backend.get_zero_matrix(n_dim)
 
         for i in range(self._n_sites):
-            idx_up = self._get_qubit_index(i, 0)
-            idx_dn = self._get_qubit_index(i, 1)
+            idx_up = self.get_qubit_index(i, 0)
+            idx_dn = self.get_qubit_index(i, 1)
 
             c_dag_up = self._mapper.get_fermion_creation_operator(
                 self._n_qubits, idx_up
@@ -206,7 +216,7 @@ class FermiHubbardModel[MatrixType]:
 
         return v_matrix
 
-    def _get_qubit_index(self, site_idx: int, spin: int) -> int:
+    def get_qubit_index(self, site_idx: int, spin: int) -> int:
         """Maps a spatial site index and spin projection to a linear qubit index.
 
         The mapping follows an interleaved ordering convention:
