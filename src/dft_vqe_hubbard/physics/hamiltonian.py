@@ -102,23 +102,10 @@ class FermiHubbardModel[MatrixType]:
             idx_up = self.get_qubit_index(i, 0)
             idx_dn = self.get_qubit_index(i, 1)
 
-            c_dag_up = self._mapper.get_fermion_creation_operator(
-                self._n_qubits, idx_up
-            )
-            c_up = self._mapper.get_fermion_annihilation_operator(
-                self._n_qubits, idx_up
-            )
-            n_up = self._backend.matmul(c_dag_up, c_up)
+            n_up = self.construct_number_operator(idx_up)
+            n_dn = self.construct_number_operator(idx_dn)
 
-            c_dag_dn = self._mapper.get_fermion_creation_operator(
-                self._n_qubits, idx_dn
-            )
-            c_dn = self._mapper.get_fermion_annihilation_operator(
-                self._n_qubits, idx_dn
-            )
-            n_dn = self._backend.matmul(c_dag_dn, c_dn)
-
-            interaction = n_up @ n_dn
+            interaction = self._backend.matmul(n_up, n_dn)
 
             weighted = self._backend.matrix_scale(interaction, penalty)
             h_int = self._backend.matrix_add(h_int, weighted)
@@ -154,21 +141,8 @@ class FermiHubbardModel[MatrixType]:
             idx_up = self.get_qubit_index(i, 0)
             idx_dn = self.get_qubit_index(i, 1)
 
-            c_dag_up = self._mapper.get_fermion_creation_operator(
-                self._n_qubits, idx_up
-            )
-            c_up = self._mapper.get_fermion_annihilation_operator(
-                self._n_qubits, idx_up
-            )
-            n_up = self._backend.matmul(c_dag_up, c_up)
-
-            c_dag_dn = self._mapper.get_fermion_creation_operator(
-                self._n_qubits, idx_dn
-            )
-            c_dn = self._mapper.get_fermion_annihilation_operator(
-                self._n_qubits, idx_dn
-            )
-            n_dn = self._backend.matmul(c_dag_dn, c_dn)
+            n_up = self.construct_number_operator(idx_up)
+            n_dn = self.construct_number_operator(idx_dn)
 
             N_op = self._backend.matrix_add(N_op, self._backend.matrix_add(n_up, n_dn))
 
@@ -206,15 +180,26 @@ class FermiHubbardModel[MatrixType]:
             if abs(v_val) < 1e-12:
                 continue
 
-            c_dag = self._mapper.get_fermion_creation_operator(self._n_qubits, q_idx)
-            c = self._mapper.get_fermion_annihilation_operator(self._n_qubits, q_idx)
-            n_op = self._backend.matmul(c_dag, c)
+            n_op = self.construct_number_operator(q_idx)
 
             term = self._backend.matrix_scale(n_op, v_val)
 
             v_matrix = self._backend.matrix_add(v_matrix, term)
 
         return v_matrix
+
+    def construct_number_operator(self, qubit_index: int) -> MatrixType:
+        """Constructs the number operator n_k = c†_k c_k for a specific qubit.
+
+        Args:
+            qubit_index: The linear index of the spin-orbital.
+
+        Returns:
+            MatrixType: The diagonal matrix n_k.
+        """
+        c_dag = self._mapper.get_fermion_creation_operator(self._n_qubits, qubit_index)
+        c = self._mapper.get_fermion_annihilation_operator(self._n_qubits, qubit_index)
+        return self._backend.matmul(c_dag, c)
 
     def get_qubit_index(self, site_idx: int, spin: int) -> int:
         """Maps a spatial site index and spin projection to a linear qubit index.
