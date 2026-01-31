@@ -67,6 +67,64 @@ class ResultPlotter:
 
         self._save_current_figure(filename)
 
+    def plot_dft_comparison(
+        self,
+        u_values: list[float],
+        exact_energies: list[float],
+        dft_energies: list[float],
+        filename: str = "dft_vs_exact.png",
+        title: str = "Hubbard Dimer: Exact vs DFT",
+    ) -> None:
+        """
+        Plots the Energy comparison between Exact Diagonalization and Lattice DFT.
+
+        Args:
+            u_values: X-axis values (U/t).
+            exact_energies: Ground truth energies (Phase 2).
+            dft_energies: Approximate energies (Phase 3).
+            filename: Output filename.
+            title: Chart title.
+        """
+        _, ax = plt.subplots(figsize=(10, 6))
+
+        ax.plot(
+            u_values,
+            exact_energies,
+            label="Exact (FCI)",
+            color="black",
+            linewidth=2,
+            linestyle="-",
+        )
+
+        ax.plot(
+            u_values,
+            dft_energies,
+            label="Lattice DFT",
+            color="tab:red",
+            marker="o",
+            linestyle="--",
+            markersize=5,
+        )
+
+        ax.set_xlabel("Interaction Strength (U/t)")
+        ax.set_ylabel("Ground State Energy ($E_0$)")
+        ax.set_title(title)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        errors = [abs(e - d) for e, d in zip(exact_energies, dft_energies, strict=True)]
+        max_error = max(errors)
+        ax.text(
+            0.05,
+            0.95,
+            f"Max Error: {max_error:.4f}",
+            transform=ax.transAxes,
+            verticalalignment="top",
+            bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+        )
+
+        self._save_current_figure(filename)
+
     def _save_current_figure(self, filename: str) -> None:
         """Helper to save and close the current matplotlib figure."""
         full_path = os.path.join(self._output_dir, filename)
