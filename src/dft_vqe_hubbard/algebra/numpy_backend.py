@@ -165,20 +165,33 @@ class NumpyBackend(OperatorBackend[np.ndarray]):
         Returns:
             complex: The scalar result.
         """
-        pass
         return complex(np.vdot(a, b))
 
     @override
-    def diagonalize(self, matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def diagonalize(self, matrix: np.ndarray) -> tuple[list[float], np.ndarray]:
         """Diagonalizes a Hermitian matrix.
 
         Args:
             matrix: The matrix to diagonalize.
 
         Returns:
-            Tuple[np.ndarray, np.ndarray]:
+            Tuple[list[float], np.ndarray]:
                 - eigenvalues: A list or array of real eigenvalues (sorted).
                 - eigenvectors: The matrix where column 'i' is the eigenvector
                     for eigenvalue 'i'.
         """
-        return np.linalg.eigh(matrix)
+        eigenvalues, eigenvectors = np.linalg.eigh(matrix)
+        return eigenvalues.tolist(), eigenvectors
+
+    @override
+    def get_column_vector(self, matrix: np.ndarray, col_index: int) -> np.ndarray:
+        """Extracts a specific column from a matrix.
+
+        Args:
+            matrix: The source matrix.
+            col_index: The index of the column to extract.
+
+        Returns:
+            np.ndarray: The column vector.
+        """
+        return matrix[:, col_index]

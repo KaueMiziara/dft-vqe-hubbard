@@ -147,16 +147,29 @@ class OperatorBackend[MatrixType](ABC):
         pass
 
     @abstractmethod
-    def diagonalize(self, matrix: MatrixType) -> tuple[MatrixType, MatrixType]:
+    def diagonalize(self, matrix: MatrixType) -> tuple[list[float], MatrixType]:
         """Diagonalizes a Hermitian matrix.
 
         Args:
             matrix: The matrix to diagonalize.
 
         Returns:
-            Tuple[Any, MatrixType]:
+            Tuple[List[float], MatrixType]:
                 - eigenvalues: A list or array of real eigenvalues (sorted).
                 - eigenvectors: The matrix where column 'i' is the eigenvector
                     for eigenvalue 'i'.
+        """
+        pass
+
+    @abstractmethod
+    def get_column_vector(self, matrix: MatrixType, col_index: int) -> MatrixType:
+        """Extracts a specific column from a matrix.
+
+        Args:
+            matrix: The source matrix.
+            col_index: The index of the column to extract.
+
+        Returns:
+            MatrixType: The column vector.
         """
         pass
