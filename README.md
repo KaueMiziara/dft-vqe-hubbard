@@ -65,8 +65,22 @@ uv run pytest
 - **Physics:** Manual implementation of the Jordan-Wigner
   mapping ($c^\dagger \to P_k \otimes \dots$) to build the Number Operator $\hat{n}$.
 
-### Phase 2: Exact Solution (Current)
+### Phase 2: Exact Solution (Completed)
 
-- **Goal:** Solve the Hubbard Hamiltonian exactly ($H = H_{kin} + H_{int}$) to
-  observe the Mott transition.
-- **Stack:** `numpy.linalg.eigh` for full diagonalization.
+- **Goal:** Solve the full Hubbard Hamiltonian ($H = H_{kin} + H_{int}$)
+  exactly to establish the "Ground Truth".
+- **Implementation:** Full Configuration Interaction (FCI)
+  using `numpy.linalg.eigh`.
+- **Physics:** Enforced particle number conservation ($N=2$) to
+  successfully observe the **Mott Transition** (decay of double
+  occupancy $\langle D \rangle$ at high $U$).
+
+### Phase 3: Classical Lattice DFT (Completed)
+
+- **Goal:** Approximate the ground state using the "Classical Loop"
+  (Self-Consistent Field) to understand the limits of Mean-Field Theory.
+- **Implementation:** Iterative SCF solver for the Kohn-Sham equations,
+  replacing the 2-body interaction with an effective Hartree potential ($V_{Hartree}$).
+- **Outcome:** Comparison with the Exact Solution revealed the
+  **Correlation Energy Gap**, demonstrating how classical mean-field approaches
+  fail to capture strong correlations (Mott physics) in the high-$U$ regime.
