@@ -174,6 +174,38 @@ class FermiHubbardModel[MatrixType]:
         """
         return self.construct_interaction_term(penalty=1.0)
 
+    def construct_potential_term(self, potentials: list[float]) -> MatrixType:
+        """Constructs the external potential energy matrix.
+
+        In DFT, this represents the 'Hartree Potential' (mean-field interaction)
+        plus any actual external fields.
+
+        Formula: V = sum_{i,sigma} (v_{i,sigma} * n_{i,sigma})
+
+        Args:
+            potentials: A list of floats of length 2*L (total qubits).
+                        potentials[k] is the energy penalty for occupying qubit k.
+
+        Returns:
+            MatrixType: A diagonal matrix representing this potential.
+        """
+        n_dim = 2**self._n_qubits
+        v_matrix = self._backend.get_zero_matrix(n_dim)
+
+        for q_idx, v_val in enumerate(potentials):
+            if abs(v_val) < 1e-12:
+                continue
+
+            c_dag = self._mapper.get_fermion_creation_operator(self._n_qubits, q_idx)
+            c = self._mapper.get_fermion_annihilation_operator(self._n_qubits, q_idx)
+            n_op = self._backend.matmul(c_dag, c)
+
+            term = self._backend.matrix_scale(n_op, v_val)
+
+            v_matrix = self._backend.matrix_add(v_matrix, term)
+
+        return v_matrix
+
     def _get_qubit_index(self, site_idx: int, spin: int) -> int:
         """Maps a spatial site index and spin projection to a linear qubit index.
 
