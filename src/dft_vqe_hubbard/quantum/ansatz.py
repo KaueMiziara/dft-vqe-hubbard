@@ -1,11 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar
-
-CircuitType = TypeVar("CircuitType")
-""" Generic type for the circuit/program object"""
-
-OperatorType = TypeVar("OperatorType")
-""" Generic type for the operator/Hamiltonian"""
 
 
 class VariationalAnsatz[CircuitType, OperatorType](ABC):
