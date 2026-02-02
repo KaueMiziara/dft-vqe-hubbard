@@ -83,4 +83,19 @@ uv run pytest
   replacing the 2-body interaction with an effective Hartree potential ($V_{Hartree}$).
 - **Outcome:** Comparison with the Exact Solution revealed the
   **Correlation Energy Gap**, demonstrating how classical mean-field approaches
-  fail to capture strong correlations (Mott physics) in the high-$U$ regime.
+  fail to capture strong correlations (Mott physics) in the high $U$ regime.
+
+### Phase 4: Quantum VQE (Completed)
+
+- **Goal:** Reproduce the exact solution using a variational
+  quantum algorithm to recover the correlation energy missed by DFT.
+- **Implementation:** - **Backend:** `PennyLaneBackend` translates Hamiltonian
+  terms into symbolic Pauli strings.
+  - **Ansatz:** Switched to a **Hardware-Efficient Ansatz (HEA)** with $RX/RY$ rotations
+    and a ring of $CNOT$ entanglers to maximize expressivity and overcome
+    symmetry-locking in the Hubbard Dimer.
+  - **Optimizer:** Utilized the **Adam Optimizer** with the Parameter-Shift
+    rule to achieve exact convergence ($E \approx -2.0$ at $U=0$).
+- **Outcome:** The VQE successfully outperformed the Classical DFT at high
+  interaction strengths, sitting directly on the Exact (FCI) line and
+  demonstrating its ability to handle strong electronic correlation.
