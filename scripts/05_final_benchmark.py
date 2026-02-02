@@ -48,11 +48,14 @@ if __name__ == "__main__":
     dft_solver = LatticeDFT(model_np, np_backend)
 
     pl_backend = PennyLaneBackend()
-    pl_ansatz = PennyLaneHEA(
-        model_pl := FermiHubbardModel(
-            pl_backend, JordanWignerMapper(pl_backend), n_sites=L, edges=[(0, 1)]
-        )
+    model_pl = FermiHubbardModel(
+        pl_backend,
+        JordanWignerMapper(pl_backend),
+        n_sites=L,
+        edges=[(0, 1)],
     )
+    pl_ansatz = PennyLaneHEA(model_pl)
+    n_op_pl = model_pl.construct_total_number_operator()
 
     quantum_solvers: dict[str, VQESolver[Any, Any]] = {
         "VQE (PennyLane HEA)": PennyLaneVQESolver(pl_ansatz, n_qubits=model_pl.n_qubits)
@@ -77,8 +80,11 @@ if __name__ == "__main__":
             e_vqe, _ = solver.solve(
                 h_vqe,
                 n_layers=n_layers,
-                learning_rate=0.04,
-                steps=200,
+                learning_rate=0.06,
+                steps=250,
+                penalty_operator=n_op_pl,
+                target_value=L,
+                penalty_weight=15.0,
             )
             vqe_benchmarks[name].append(e_vqe)
 

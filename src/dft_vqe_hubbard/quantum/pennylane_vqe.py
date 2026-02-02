@@ -31,8 +31,20 @@ class PennyLaneVQESolver(VQESolver[Callable[..., None], qml.operation.Operator])
         n_layers: int,
         learning_rate: float = 0.1,
         steps: int = 100,
+        penalty_operator: qml.operation.Operator | None = None,
+        target_value: float = 2.0,
+        penalty_weight: float = 20.0,
     ) -> tuple[float, np.ndarray]:
         """Minimizes the energy using Gradient Descent.
+
+        Args:
+            hamiltonian: The operator to minimize.
+            n_layers: Depth of the ansatz.
+            learning_rate: Step size for the optimizer.
+            steps: Number of optimization iterations.
+            penalty_operator: An operator to constrain.
+            target_value: The desired expectation value for the penalty_operator.
+            penalty_weight: The strength of the penalty.
 
         Returns:
             tuple[float, np.ndarray]: (Final energy, Optimal parameters).
@@ -49,17 +61,30 @@ class PennyLaneVQESolver(VQESolver[Callable[..., None], qml.operation.Operator])
         def quantum_circuit(p: Any) -> Any:
             circuit = self._ansatz.build_circuit(p, self._n_qubits, n_layers)
             circuit()
+
+            if penalty_operator is not None:
+                return qml.expval(hamiltonian), qml.expval(penalty_operator)
             return qml.expval(hamiltonian)
 
         def cost_fn(p: pnp.tensor) -> Any:
-            return pnp.real(quantum_circuit(p))  # type: ignore
+            results = quantum_circuit(p)
+
+            if penalty_operator is not None:
+                energy, n_val = results
+                return (
+                    pnp.real(energy)  # type:ignore
+                    + penalty_weight * (pnp.real(n_val) - target_value) ** 2  # type:ignore
+                )
+
+            return pnp.real(results)  # type:ignore
 
         opt = qml.AdamOptimizer(stepsize=learning_rate)
 
-        energy = 0.0
         for i in range(steps):
-            params, energy = opt.step_and_cost(cost_fn, params)  # type: ignore
+            params, cost = opt.step_and_cost(cost_fn, params)
             if i % 10 == 0:
-                print(f"Step {i:3d} | Energy: {energy:.6f}")
+                print(f"Step {i:3d} | Energy: {cost:.6f}")
 
-        return float(energy), params.numpy()  # type: ignore
+        final_res = quantum_circuit(params)
+        final_energy = final_res[0] if penalty_operator is not None else final_res
+        return float(pnp.real(final_energy)), params.numpy()  # type: ignore

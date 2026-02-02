@@ -18,6 +18,7 @@ if __name__ == "__main__":
 
     mapper_pl = JordanWignerMapper(pl_backend)
     model_pl = FermiHubbardModel(pl_backend, mapper_pl, n_sites=L, edges=[(0, 1)])
+    n_op_pl = model_pl.construct_total_number_operator()
 
     mapper_np = JordanWignerMapper(np_backend)
     model_np = FermiHubbardModel(np_backend, mapper_np, n_sites=L, edges=[(0, 1)])
@@ -41,7 +42,15 @@ if __name__ == "__main__":
         print(f"\n>>> Training VQE for U={U}...")
         h_total = model_pl.construct_total_hamiltonian(t, U)
 
-        e_vqe, _ = vqe_solver.solve(h_total, n_layers=3, learning_rate=0.04, steps=200)
+        e_vqe, _ = vqe_solver.solve(
+            h_total,
+            n_layers=3,
+            learning_rate=0.07,
+            steps=200,
+            penalty_operator=n_op_pl,
+            target_value=L,
+            penalty_weight=15.0,
+        )
         vqe_energies.append(e_vqe)
 
         print(f"{U:<6.1f} | {e_dft:<12.4f} | {e_vqe:<15.4f}")
