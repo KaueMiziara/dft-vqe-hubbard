@@ -1,6 +1,6 @@
 [project]
 name = "dft-vqe-hubbard"
-version = "1.0.0"
+version = "1.1.0"
 description = "A bottom-up implementation of Quantum-Enhanced Density Functional Theory (QEDFT) for the Hubbard Model, moving from pure NumPy linear algebra to Variational Quantum Eigensolvers."
 readme = "README.md"
 authors = [{ name = "Kaue Miziara", email = "kauemiziara@gmail.com" }]
