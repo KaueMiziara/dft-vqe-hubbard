@@ -125,6 +125,54 @@ class ResultPlotter:
 
         self._save_current_figure(filename)
 
+    def plot_vqe_benchmark(
+        self,
+        u_values: list[float],
+        dft_energies: list[float],
+        vqe_energies: list[float],
+        vqe_label: str = "VQE (PennyLane)",
+        filename: str = "vqe_dft_comparison.png",
+        title: str = "Hubbard Dimer: DFT vs Quantum VQE",
+    ) -> None:
+        """
+        Plots the Energy comparison between Classical DFT and Quantum VQE.
+
+        Args:
+            u_values: X-axis values (U/t).
+            dft_energies: Classical DFT energies.
+            vqe_energies: Energies retrieved from the VQE solver.
+            vqe_label: Label for the specific VQE implementation.
+            filename: Output filename.
+            title: Chart title.
+        """
+        _, ax = plt.subplots(figsize=(10, 6))
+
+        ax.plot(
+            u_values,
+            dft_energies,
+            label="Lattice DFT",
+            color="tab:red",
+            linestyle="--",
+            alpha=0.7,
+        )
+
+        ax.scatter(
+            u_values,
+            vqe_energies,
+            label=vqe_label,
+            color="tab:blue",
+            marker="x",
+            s=50,
+        )
+
+        ax.set_xlabel("Interaction Strength (U/t)")
+        ax.set_ylabel("Ground State Energy ($E_0$)")
+        ax.set_title(title)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        self._save_current_figure(filename)
+
     def _save_current_figure(self, filename: str) -> None:
         """Helper to save and close the current matplotlib figure."""
         full_path = os.path.join(self._output_dir, filename)
