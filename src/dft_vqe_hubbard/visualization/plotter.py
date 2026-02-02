@@ -153,16 +153,18 @@ class ResultPlotter:
             label="Lattice DFT",
             color="tab:red",
             linestyle="--",
+            marker="o",
             alpha=0.7,
         )
 
-        ax.scatter(
+        ax.plot(
             u_values,
             vqe_energies,
             label=vqe_label,
             color="tab:blue",
-            marker="x",
-            s=50,
+            linestyle="-.",
+            marker="^",
+            alpha=0.7,
         )
 
         ax.set_xlabel("Interaction Strength (U/t)")
