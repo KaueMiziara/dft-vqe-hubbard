@@ -175,6 +175,67 @@ class ResultPlotter:
 
         self._save_current_figure(filename)
 
+    def plot_full_benchmark(
+        self,
+        u_values: list[float],
+        exact_energies: list[float],
+        dft_energies: list[float],
+        vqe_results: dict[str, list[float]],
+        filename: str = "final_benchmark.png",
+        title: str = "Hubbard Dimer: Multi-Solver Benchmark",
+    ) -> None:
+        """
+        Plots the comparison between Exact, DFT, and various VQE backends.
+
+        Args:
+            u_values: Interaction strengths (U/t).
+            exact_energies: Ground truth energies (FCI).
+            dft_energies: Lattice DFT results.
+            vqe_results: Dictionary mapping solver names to their energy lists.
+            filename: Output filename.
+            title: Chart title.
+        """
+        _, ax = plt.subplots(figsize=(12, 7))
+
+        ax.plot(
+            u_values,
+            exact_energies,
+            "k-",
+            label="Exact (FCI)",
+            linewidth=2.5,
+            zorder=1,
+        )
+        ax.plot(
+            u_values,
+            dft_energies,
+            "r--",
+            label="Lattice DFT",
+            marker="o",
+            alpha=0.8,
+            zorder=2,
+        )
+
+        markers = ["^", "v", "s", "x"]
+        colors = ["tab:blue", "tab:orange", "tab:green", "tab:purple"]
+        for i, (name, energies) in enumerate(vqe_results.items()):
+            ax.plot(
+                u_values,
+                energies,
+                label=name,
+                color=colors[i % len(colors)],
+                linestyle="-.",
+                marker=markers[i % len(markers)],
+                zorder=3,
+            )
+
+        ax.set_xlabel("Interaction Strength (U/t)")
+        ax.set_ylabel("Ground State Energy ($E_0$)")
+        ax.set_title(title)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        self._save_current_figure(filename)
+
     def _save_current_figure(self, filename: str) -> None:
         """Helper to save and close the current matplotlib figure."""
         full_path = os.path.join(self._output_dir, filename)
