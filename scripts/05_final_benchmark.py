@@ -19,15 +19,27 @@ def get_exact_fci(
     t: float,
     u: float,
 ) -> float:
-    """Calculates ground truth via Exact Diagonalization (FCI)[cite: 36, 40]."""
+    """Calculates ground truth via Exact Diagonalization (FCI) for N=2 sector."""
     h_total = model.construct_total_hamiltonian(t, u)
-    vals, _ = backend.diagonalize(h_total)
-    return float(vals[0])
+    eigenvalues, eigenvectors = backend.diagonalize(h_total)
+
+    n_op = model.construct_total_number_operator()
+    target_n = model.n_sites
+
+    for idx, en in enumerate(eigenvalues):
+        psi = backend.get_column_vector(eigenvectors, idx)
+        n_psi = backend.matmul(n_op, psi)
+        n_val = backend.inner_product(psi, n_psi).real
+
+        if np.isclose(n_val, target_n, atol=1e-2):
+            return float(en)
+
+    return float(eigenvalues[0])
 
 
 if __name__ == "__main__":
     L, t = 2, 1.0
-    u_values = np.linspace(0, 10, 11)
+    u_values = np.linspace(0, 10, 21)
     n_layers = 3
 
     np_backend = NumpyBackend()
