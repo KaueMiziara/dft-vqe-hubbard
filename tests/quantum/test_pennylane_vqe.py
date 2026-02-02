@@ -7,7 +7,7 @@ import pytest
 from dft_vqe_hubbard.algebra.pennylane_backend import PennyLaneBackend
 from dft_vqe_hubbard.physics.hamiltonian import FermiHubbardModel
 from dft_vqe_hubbard.physics.jordan_wigner import JordanWignerMapper
-from dft_vqe_hubbard.quantum.pennylane_ansatz import PennyLaneHVA
+from dft_vqe_hubbard.quantum.pennylane_ansatz import PennyLaneHEA
 from dft_vqe_hubbard.quantum.pennylane_vqe import PennyLaneVQESolver
 
 
@@ -23,7 +23,7 @@ class TestPennyLaneVQESolver:
         mapper = JordanWignerMapper(backend)
         model = FermiHubbardModel(backend, mapper, n_sites=2, edges=[(0, 1)])
 
-        ansatz = PennyLaneHVA(model)
+        ansatz = PennyLaneHEA(model)
         solver = PennyLaneVQESolver(ansatz, n_qubits=4)
 
         h_total = model.construct_total_hamiltonian(t=1.0, penalty=0.0)
@@ -55,8 +55,11 @@ class TestPennyLaneVQESolver:
     def test_output_contract(self, setup_vqe: tuple[PennyLaneVQESolver, Any]) -> None:
         """Checks the return types satisfy the solver interface."""
         solver, h_total = setup_vqe
-        energy, params = solver.solve(h_total, n_layers=1, steps=2)
+        n_layers = 1
+        energy, params = solver.solve(h_total, n_layers=n_layers, steps=2)
+
+        expected_params = solver._ansatz.get_n_parameters(n_layers)
 
         assert isinstance(energy, float)
         assert isinstance(params, np.ndarray)
-        assert len(params) == 2
+        assert len(params) == expected_params

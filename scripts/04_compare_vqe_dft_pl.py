@@ -5,7 +5,7 @@ from dft_vqe_hubbard.algebra.pennylane_backend import PennyLaneBackend
 from dft_vqe_hubbard.physics.dft import LatticeDFT
 from dft_vqe_hubbard.physics.hamiltonian import FermiHubbardModel
 from dft_vqe_hubbard.physics.jordan_wigner import JordanWignerMapper
-from dft_vqe_hubbard.quantum.pennylane_ansatz import PennyLaneHVA
+from dft_vqe_hubbard.quantum.pennylane_ansatz import PennyLaneHEA
 from dft_vqe_hubbard.quantum.pennylane_vqe import PennyLaneVQESolver
 from dft_vqe_hubbard.visualization.plotter import ResultPlotter
 
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     model_np = FermiHubbardModel(np_backend, mapper_np, n_sites=L, edges=[(0, 1)])
 
     dft_solver = LatticeDFT(model_np, np_backend)
-    hva = PennyLaneHVA(model_pl)
+    hva = PennyLaneHEA(model_pl)
     vqe_solver = PennyLaneVQESolver(hva, n_qubits=model_pl.n_qubits)
 
     plotter = ResultPlotter()
@@ -41,7 +41,7 @@ if __name__ == "__main__":
         print(f"\n>>> Training VQE for U={U}...")
         h_total = model_pl.construct_total_hamiltonian(t, U)
 
-        e_vqe, _ = vqe_solver.solve(h_total, n_layers=2, learning_rate=0.05, steps=150)
+        e_vqe, _ = vqe_solver.solve(h_total, n_layers=3, learning_rate=0.04, steps=200)
         vqe_energies.append(e_vqe)
 
         print(f"{U:<6.1f} | {e_dft:<12.4f} | {e_vqe:<15.4f}")

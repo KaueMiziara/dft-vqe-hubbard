@@ -5,7 +5,7 @@ import numpy as np
 import pennylane as qml
 from pennylane import numpy as pnp
 
-from dft_vqe_hubbard.quantum.pennylane_ansatz import PennyLaneHVA
+from dft_vqe_hubbard.quantum.pennylane_ansatz import PennyLaneHEA
 from dft_vqe_hubbard.quantum.vqe_solver import VQESolver
 
 
@@ -14,10 +14,10 @@ class PennyLaneVQESolver(VQESolver[Callable[..., None], qml.operation.Operator])
     PennyLane implementation of the VQE loop.
     """
 
-    def __init__(self, ansatz: PennyLaneHVA, n_qubits: int) -> None:
+    def __init__(self, ansatz: PennyLaneHEA, n_qubits: int) -> None:
         """
         Args:
-            ansatz: The HVA ansatz instance.
+            ansatz: The HEA ansatz instance.
             n_qubits: Total qubits in the system.
         """
         self._ansatz = ansatz
