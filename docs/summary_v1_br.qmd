@@ -1,0 +1,437 @@
+---
+title: "Soluções Variacionais Quânticas para o Dímero de Hubbard"
+subtitle: "Benchmark Analysis: Diagonalização Exata, Lattice DFT e VQE"
+author: "Kauê Miziara"
+date: "2026-02-03"
+format:
+  pdf:
+    documentclass: report
+    papersize: a4
+    geometry:
+      - top=30mm
+      - left=20mm
+      - heightrounded
+    header-includes:
+      - \usepackage{physics}
+      - \usepackage{amsmath}
+      - \usepackage{amssymb}
+    toc: true
+    colorlinks: true
+---
+
+# 1. Introdução
+
+## 1.1 Visão Geral do Projeto
+Este projeto implementa um estudo computacional multi-método do Dímero de Hubbard, um modelo fundamental em física da matéria condensada. O objetivo principal é avaliar a eficácia de algoritmos clássicos e híbridos quântico-clássicos na captura da correlação eletrônica.
+
+Ao definir um pipeline agnóstico a frameworks, este trabalho realiza o benchmark de três abordagens distintas:
+
+1. **Full Configuration Interaction (FCI):** Diagonalização numérica direta.
+2. **Lattice Density Functional Theory (LDFT):** Aproximação clássica de campo médio.
+3. **Variational Quantum Eigensolver (VQE):** Otimização nativa quântica utilizando o Hardware-Efficient Ansatz (HEA).
+
+## 1.2 A Importância da Física da Matéria Condensada
+A física da matéria condensada explora as propriedades macroscópicas e microscópicas da matéria, especialmente em fases onde as interações entre muitas partículas são fortes. Compreender essas interações é o gargalo para o desenvolvimento de supercondutores de alta temperatura, catalisadores eficientes e novos materiais semicondutores.
+
+> O desafio central na área é o **Problema de Muitos Corpos**. Visto que os elétrons são férmions indistinguíveis, suas funções de onda são antissimétricas e altamente emaranhadas.
+
+Em sistemas "fortemente correlacionados", o comportamento de um único elétron não pode ser descrito independentemente dos outros, tornando as aproximações de partícula única (como o _Hartree-Fock_ básico ou o _DFT_ padrão) fisicamente insuficientes.
+
+## 1.3 Objetivos
+O _Dímero de Hubbard_ é a realização não-trivial mais simples do _modelo de Hubbard_. Ele é utilizado aqui como um ambiente controlado para estudar a **Transição de Mott**.
+
+Este projeto serve como um exercício para:
+
+- Validar a implementação manual das **transformações de Jordan-Wigner**.
+- Quantificar o **Correlation Energy Gap** onde o Lattice DFT clássico desvia das soluções exatas.
+- Demonstrar a recuperação bem-sucedida desta energia de correlação usando **Algoritmos Quânticos Variacionais**.
+
+# 2. Fundamentos Físicos
+
+## 2.1 O Problema de Muitos Corpos e Complexidade Computacional
+O desafio central na química quântica e na física da matéria condensada é o Problema de Muitos Corpos. Para um sistema de $N$ elétrons interagindo, a função de onda $\Psi(\mathbf{r}_1, \mathbf{r}_2, \dots, \mathbf{r}_N)$ depende de $3N$ coordenadas espaciais e $N$ coordenadas de spin.
+
+Como os elétrons são férmions, a função de onda deve ser antissimétrica sob a troca de quaisquer duas partículas, levando a efeitos de correlação complexos.
+
+### 2.1.1 A Parede Exponencial
+A dimensão do espaço de Hilbert de um sistema quântico escala exponencialmente com o número de partículas. Para um sistema com $M$ orbitais e $N$ elétrons, o número de configurações possíveis (estados da base) é dado pelo coeficiente binomial:
+$$\dim(\mathcal{H}) = \binom{2M}{N}$$
+Este escalonamento exponencial torna a _Diagonalização Exata_ (FCI) computacionalmente intratável para sistemas que excedem algumas dezenas de elétrons. Aproximações clássicas são necessárias para mapear essa complexidade de muitos corpos em modelos mais simples e tratáveis.
+
+## 2.2 O Modelo de Hubbard
+O modelo de Hubbard é a aproximação mais simples usada para estudar a transição entre as fases **condutora** e **isolante** em sistemas de estado sólido.
+
+Ele simplifica a estrutura eletrônica completa assumindo que os elétrons ocupam apenas *sítios discretos* da rede e só interagem quando residem *no mesmo* sítio.
+
+### 2.2.1 O Hamiltoniano de Hubbard
+Na mecânica quântica, o Hamiltoniano ($H$) é o operador correspondente à energia total do sistema. Para o modelo de Hubbard, o Hamiltoniano é expresso como:
+
+$$H = -t \sum_{\langle i,j \rangle, \sigma} (c_{i\sigma}^\dagger c_{j\sigma} + c_{j\sigma}^\dagger c_{i\sigma}) + U \sum_i n_{i\uparrow}n_{i\downarrow}$$
+
+Onde:
+
+- $c_{i\sigma}^\dagger, c_{i\sigma}$: Operadores de criação e aniquilação para um elétron no sítio $i$ com spin $\sigma$.
+- $n_{i\sigma}$: Operador número ($n_{i\sigma} = c_{i\sigma}^\dagger c_{i\sigma}$).
+- $\sigma$: Índice de spin, tipicamente $\uparrow$ (up) ou $\downarrow$ (down).
+- $t$: Integral de salto ou *hopping* (escala de energia cinética).
+- $U$: Repulsão Coulombiana *on-site* (escala de energia potencial).
+
+#### $\dagger$ Termo de Salto (Energia Cinética)
+O termo $-t(c_{i\sigma}^\dagger c_{j\sigma} + c_{j\sigma}^\dagger c_{i\sigma})$ descreve o comportamento cinético do sistema:
+
+- **Aniquilação ($c_{j\sigma}$):** Remove um elétron do sítio $j$.
+- **Criação ($c_{i\sigma}^\dagger$):** Coloca um elétron no sítio $i$.
+
+A soma dessas operações representa o tunelamento de um elétron entre sítios adjacentes. Este processo diminui a energia cinética do sistema ao permitir que os elétrons se deslocalizem pela rede.
+
+#### $\dagger$ Termo de Interação (Energia Potencial)
+O termo $U(n_{i\uparrow}n_{i\downarrow})$ descreve a correlação eletrônica:
+
+* **Operadores Número ($n_{i\uparrow}, n_{i\downarrow}$):** Estes operadores retornam a ocupação do estado de spin específico no sítio $i$, que pode ser 0 ou 1.
+* **Repulsão On-site:** O produto $n_{i\uparrow}n_{i\downarrow}$ é não-nulo apenas quando o sítio $i$ está duplamente ocupado. Neste caso, a energia do sistema aumenta em $U$, representando a repulsão eletrostática entre dois elétrons no mesmo orbital espacial.
+
+### 2.2.2 Espaço de Fock e Segunda Quantização
+Para representar estados com números variados de partículas, utilizamos o **Espaço de Fock** ($\mathcal{F}$), que é a soma direta de espaços de Hilbert para $N=0, 1, 2, \dots$ partículas.
+
+Um estado neste espaço é representado por um vetor de número de ocupação:
+$$\ket{\psi} = \ket{n_1, n_2, \dots, n_M}$$
+onde $n_i \in \{0, 1\}$ representa a ocupação do $i$-ésimo spin-orbital.
+
+#### $\dagger$ Operadores de Criação e Aniquilação
+A dinâmica no espaço de Fock é governada por operadores que realizam a transição entre estes estados de ocupação:
+
+1. **Operador de Criação ($c_i^\dagger$):** Coloca um elétron no orbital $i$.
+$$c_i^\dagger \ket{n_1, \dots, 0_i, \dots, n_M} = (-1)^{\sum_{k<i} n_k} \ket{n_1, \dots, 1_i, \dots, n_M}$$
+2. **Operador de Aniquilação ($c_i$):** Remove um elétron do orbital $i$.
+$$c_i \ket{n_1, \dots, 1_i, \dots, n_M} = (-1)^{\sum_{k<i} n_k} \ket{n_1, \dots, 0_i, \dots, n_M}$$
+
+O fator de fase $(-1)^{\sum_{k<i} n_k}$ rastreia o número de estados ocupados que precedem o $i$-ésimo sítio, garantindo que os operadores satisfaçam as **relações de anticonutação canônicas**:
+$$\{c_i, c_j^\dagger\} = \delta_{ij}$$
+$$\{c_i, c_j\} = \{c_i^\dagger, c_j^\dagger\} = 0$$
+
+## 2.3 O Mapeamento de Jordan-Wigner
+A dificuldade fundamental na simulação quântica é que os operadores de qubit (portas de Pauli) comutam quando atuam em qubits diferentes ($[X_i, X_j] = 0$), enquanto operadores de férmions devem anticomutar ($\{c_i, c_j\} = 0$).
+
+O mapeamento de Jordan-Wigner resolve isso representando os operadores fermiônicos como uma combinação de matrizes de Pauli e uma "string de paridade" de operadores $Z$:
+
+$$c_j^\dagger \rightarrow \left( \bigotimes_{k < j} Z_k \right) \otimes \sigma^+_j \otimes \left( \bigotimes_{j < k < N} \mathbb{I}_k \right)$$
+$$c_j \rightarrow \left( \bigotimes_{k < j} Z_k \right) \otimes \sigma^-_j \otimes \left( \bigotimes_{j < k < N} \mathbb{I}_k \right)$$
+
+### 2.3.1 Interpretação do Mapeamento
+- **Operadores de Escada:** O termo $\sigma^\pm$ corresponde aos operadores de subida/descida de qubit $\sigma_\pm$, que invertem o estado do $j$-ésimo qubit entre $\ket{0}$ e $\ket{1}$. Definidos como:
+$$\sigma^\pm = \frac{1}{2}(X \mp iY)$$
+- **String de Paridade:** A sequência de operadores $Z$ ($Z_0 \otimes Z_1 \otimes \dots \otimes Z_{j-1}$) armazena a paridade cumulativa dos qubits precedentes. Isso garante que, quando uma operação é realizada no sítio $j$, o estado resultante receba o sinal físico correto $(-1)$ exigido pelo Princípio de Exclusão de Pauli.
+
+## 2.4 A Transição de Mott e Dupla Ocupação
+A transição de Mott é uma transição metal-isolante impulsionada por correlações elétron-elétron, em vez da teoria de bandas tradicional.
+
+Em um metal padrão, os elétrons estão deslocalizados e podem fluir livremente sob um campo elétrico. No entanto, em certos materiais, a força repulsiva entre os elétrons torna-se tão forte que eles ficam "travados" em suas posições (um por sítio), efetivamente interrompendo a condução.
+
+### 2.4.1 A Competição de Escalas
+O estado do sistema é determinado pela razão $U/t$:
+
+- **Regime Fracamente Correlacionado ($U/t \ll 1$):** A energia cinética domina. Os elétrons se deslocalizam pela rede para minimizar sua energia e o sistema se comporta como um metal.
+- **Regime Fortemente Correlacionado ($U/t \gg 1$):** A energia potencial domina. O custo de dois elétrons ocuparem o mesmo sítio ($U$) supera o ganho de energia pelo salto ($t$). Os elétrons se localizam para evitar a penalidade, levando a um **Isolante de Mott**.
+
+### 2.4.2 Dupla Ocupação como um Observável Físico
+Para quantificar esta transição, definimos a **Dupla Ocupação** ($\langle D \rangle$), que mede o número médio de sítios contendo dois elétrons:
+$$\langle D \rangle = \frac{1}{L} \sum_{i=1}^L \langle n_{i\uparrow} n_{i\downarrow} \rangle$$
+
+Onde $L$ é o número de sítios. No limite não-interagente ($U=0$), os elétrons são distribuídos estatisticamente e $\langle D \rangle$ está em seu máximo. Conforme $U$ aumenta, $\langle D \rangle$ serve como um parâmetro de ordem para a transição de Mott.
+
+## 2.5 O Dímero de Hubbard
+O Dímero de Hubbard é o caso $L=2$ do modelo, representando dois sítios com quatro spin-orbitais possíveis: $0\uparrow, 0\downarrow, 1\uparrow, 1\downarrow$. Em **meio-preenchimento** (half-filling, $N=2$ elétrons), é o menor sistema que captura a física descrita acima.
+
+No dímero, a transição de Mott manifesta-se como o crossover entre:
+
+1. **O Estado Singlet de Ligação:** Para $U=0$, o estado fundamental é uma superposição onde ambos os elétrons compartilham o orbital espacial de menor energia.
+2. **O Limite Localizado (Heisenberg):** Para $U \to \infty$, o estado fundamental aproxima-se de uma configuração onde cada sítio é ocupado por exatamente um elétron com spins opostos.
+
+## 2.6 As Limitações de Solvers Exatos
+Embora o _Full Configuration Interaction_ (FCI), que é a diagonalização direta do Hamiltoniano, forneça a energia e a função de onda exatas do estado fundamental, sua aplicação é severamente limitada pela dimensionalidade do problema.
+
+### 2.6.1 Explosão de Estados da Base
+Como estabelecido, a dimensão do espaço de Hilbert cresce binomialmente. Para um modelo de Hubbard com $L$ sítios em meio-preenchimento ($N=L$), o tamanho da matriz Hamiltoniana é:
+$$\dim(\mathcal{H}) = \binom{2L}{L}$$
+Para $L=2$, a dimensão é 6. No entanto, para apenas $L=20$ sítios, a dimensão excede 137 bilhões, tornando a diagonalização computacionalmente proibitiva.
+
+### 2.6.2 A Necessidade de Aproximações
+Como a maioria dos materiais industriais envolve centenas de elétrons, não podemos contar com métodos exatos. Técnicas comuns são:
+
+1. **Teorias de Campo Médio Clássicas (DFT):** Reduzem o problema de muitos corpos a um problema de partícula única.
+2. **Algoritmos Quânticos Variacionais (VQE):** Utilizam hardware quântico para representar a função de onda exponencialmente grande em um formato naturalmente comprimido.
+
+## 2.7 Lattice Density Functional Theory (LDFT)
+A Teoria do Funcional da Densidade (_Density Functional Theory_ - DFT) é o método clássico mais amplamente utilizado para cálculos de estrutura eletrônica.
+
+Baseia-se nos teoremas de Hohenberg-Kohn, que estabelecem que as propriedades do estado fundamental de um sistema de muitos elétrons são univocamente determinadas pelo seu perfil de densidade eletrônica, em vez de sua complexa função de onda de muitos corpos.
+
+### 2.7.1 A Abordagem de Kohn-Sham
+Para tornar o problema tratável, o sistema de muitos corpos interagentes é mapeado em um sistema de partículas não-interagentes que se movem em um potencial local efetivo.
+
+No contexto do modelo de Hubbard na rede, este potencial efetivo deve contabilizar a repulsão *on-site* $U$ sem calcular explicitamente as correlações de dois corpos.
+
+### 2.7.2 O Potencial de Hartree e a Aproximação de Campo Médio
+A principal aproximação utilizada neste projeto é a **Aproximação de Campo Médio (Hartree)**.
+
+Substituímos o termo de interação de dois corpos $U n_{i\uparrow}n_{i\downarrow}$ por um potencial de partícula única onde cada elétron interage com a densidade *média* de elétrons com spin oposto:
+$$V_{i,\sigma}^{Hartree} = U \langle n_{i,-\sigma} \rangle$$
+
+> Isso transforma o termo de interação complexo em uma energia potencial dependente do sítio
+
+O Hamiltoniano torna-se "linearizado" em termos de operadores de partícula única, que podem ser resolvidos usando a diagonalização de matriz padrão.
+
+### 2.7.3 O Loop de Self-Consistent Field (SCF)
+Como o potencial de Hartree depende das densidades eletrônicas ($\langle n \rangle$), e as densidades são determinadas pelos autovetores do Hamiltoniano, o problema deve ser resolvido iterativamente.
+
+Isso é conhecido como o **loop de Campo Auto-Consistente (SCF)**:
+
+1.  **Inicialização:** Assume-se um chute inicial para as densidades de sítio $\langle n_{i\sigma} \rangle$.
+2.  **Construção do Hamiltoniano:** Constrói-se o Hamiltoniano de partícula única efetivo usando as densidades atuais para calcular o potencial de Hartree.
+3.  **Diagonalização:** Resolve-se o Hamiltoniano para encontrar as novas funções de onda de partícula única (orbitais de Kohn-Sham).
+4.  **Atualização da Densidade:** Calculam-se as novas densidades a partir dos orbitais ocupados.
+5.  **Verificação de Convergência:** Comparam-se as novas densidades com a iteração anterior. Se a mudança estiver abaixo de um limiar definido, o sistema é "Auto-Consistente"; caso contrário, repete-se a partir do passo 2.
+
+### 2.7.4 O Gap de Correlação
+Embora o LDFT seja computacionalmente eficiente, sua dependência da densidade média significa que ele falha em capturar a **correlação dinâmica**.
+
+No regime de alto $U$ do Dímero de Hubbard, a aproximação de campo médio subestima significativamente a energia porque não consegue contabilizar adequadamente a esquiva "instantânea" entre os elétrons.
+
+Essa discrepância entre o resultado do DFT e a solução Exata é conhecida como **Energia de Correlação**.
+
+## 2.8 Variational Quantum Eigensolver (VQE)
+O _Variational Quantum Eigensolver_ é um algoritmo híbrido quântico-clássico projetado para encontrar a energia do estado fundamental de um determinado Hamiltoniano.
+
+Enquanto o DFT se baseia na aproximação do potencial de interação, o VQE utiliza o **Princípio Variacional** para otimizar uma função de onda de teste (Ansatz) até que ela se aproxime do verdadeiro estado fundamental de muitos corpos.
+
+### 2.8.1 O Princípio Variacional
+A base matemática do VQE é o teorema variacional, que estabelece que, para qualquer função de onda de teste normalizada $\ket{\psi(\theta)}$, o valor esperado do Hamiltoniano $H$ é sempre um limite superior para a verdadeira energia do estado fundamental $E_0$:
+$$E(\theta) = \frac{\bra{\psi(\theta)} H \ket{\psi(\theta)}}{\braket{\psi(\theta) | \psi(\theta)}} \geq E_0$$
+
+O objetivo do algoritmo é minimizar $E(\theta)$ ajustando iterativamente os parâmetros $\theta$ através de um otimizador clássico.
+
+### 2.8.2 Fluxo de Trabalho Híbrido Quântico-Clássico
+O VQE distribui a carga computacional entre hardware quântico e clássico:
+
+1.  **Processador Quântico (QPU):** Prepara o estado $\ket{\psi(\theta)}$ em um registrador quântico e mede os valores esperados das strings de Pauli que compõem o Hamiltoniano.
+2.  **Processador Clássico (CPU):** Soma os valores esperados medidos para calcular a energia total $E(\theta)$ e utiliza um algoritmo de otimização (ex: Adam, COBYLA) para sugerir novos parâmetros $\theta$.
+
+### 2.8.3 Superando o Gap de Correlação
+Diferente da abordagem de campo médio do DFT, que reduz as interações eletrônicas a um potencial médio, o VQE prepara um estado na QPU que pode representar naturalmente o emaranhamento e correlações complexas.
+
+Ao utilizar um **Ansatz** suficientemente expressivo, o VQE pode explorar o espaço de Hilbert completo e convergir para a energia FCI exata, recuperando efetivamente a energia de correlação que as aproximações clássicas perdem no regime de alto $U$.
+
+## 2.9 Vinculando Teoria e Computação
+A complexidade matemática da transformação de Jordan-Wigner e a natureza iterativa dos loops SCF e VQE necessitam de uma arquitetura que priorize a modularidade e a precisão numérica.
+
+A seção seguinte detalha os princípios de engenharia de software empregados para traduzir esses fundamentos físicos em uma base de código escalável e agnóstica a frameworks.
+
+# 3. Arquitetura de Software
+
+## 3.1 Filosofia de Design: Separação de Responsabilidades
+O projeto é construído sobre o princípio da **Separação de Responsabilidades (SoC)**. Ao desacoplar as definições físicas (Hamiltonianos, Modelos) dos backends matemáticos (Numpy, PennyLane), a biblioteca garante que a física permaneça imutável, independentemente da ferramenta computacional utilizada.
+
+Isso é alcançado por meio de vários padrões de engenharia fundamentais:
+
+- **Camada de Abstração:** A álgebra é tratada por uma classe base abstrata, garantindo que a mesma lógica física possa ser executada em uma CPU clássica ou em um Simulador/Processador Quântico.
+- **Modularidade:** Módulos de física (Modelo de Hubbard, mapeamento de Jordan-Wigner) são independentes da lógica do solver (DFT, VQE).
+- **Extensibilidade:** A arquitetura é projetada para suportar backends adicionais (ex: Qiskit) sem exigir alterações no motor de física principal.
+
+## 3.2 Álgebra Agnóstica a Framework
+No núcleo do sistema está a interface `OperatorBackend`. Esta camada abstrata define as operações padrão necessárias para a física de muitos corpos, tais como:
+
+- Multiplicação de matrizes e produtos internos.
+- Diagonalização (problemas de autovalores).
+- Produtos tensoriais (produtos de Kronecker) para a construção de operadores de múltiplos sítios
+- Manipulação de strings de Pauli para circuitos quânticos.
+
+### 3.2.1 Injeção de Dependência
+Os solvers (tanto o `LatticeDFT` quanto o `VQESolver`) não instanciam seus próprios backends. Em vez disso, utilizam **Injeção de Dependência**.
+
+Um backend concreto (ex: `NumpyBackend`) é passado para o solver em tempo de execução. Isso permite:
+
+1. **Testes Unitários:** Substituição de backends complexos por mocks para testes mais rápidos.
+2. **Troca de Framework:** Execução da mesma instância do Modelo de Hubbard através de um solver exato clássico e, em seguida, um solver VQE quântico, simplesmente injetando um backend diferente.
+
+## 3.3 Estrutura do Projeto
+O repositório está organizado para refletir essas camadas arquiteturais:
+
+- `src/`: A biblioteca principal.
+    - `algebra/`: Contém a interface `OperatorBackend` e as implementações concretas (ex: `Numpy`, `PennyLane`).
+    - `physics/`: Define o Modelo de Hubbard, operadores de criação/aniquilação e o Mapeador Jordan-Wigner.
+    - `quantum/`: Abriga a infraestrutura de VQE, incluindo Ansätze (HEA, HVA) e os loops de otimização.
+    - `visualization/`: Utilitários de plotagem desacoplados para benchmarking de resultados entre as fases.
+- `scripts/`: Código executável com workflows de implementação específica para benchmarking (Fase 1 a 4).
+
+## 3.4 Stack de Desenvolvimento e Ferramentas
+
+O projeto utiliza uma toolchain Python padronizada, focada em análise estática, segurança de tipos e controle de qualidade automatizado.
+
+### 3.4.1 Gerenciamento de Pacotes e Ambiente
+* **`uv`:** Empregado como o principal gerenciador de pacotes e sistema de build. Ele fornece resolução de dependências de alta performance e gerencia o ambiente virtual, garantindo builds reprodutíveis entre diferentes ambientes de desenvolvimento.
+
+### 3.4.2 Análise Estática e Qualidade de Código
+* **Ruff:** Utilizado para linting e formatação de código. Ele impõe um guia de estilo consistente e identifica potenciais erros de lógica ou código morto.
+* **Pyright:** Atua como o verificador estático de tipos. Ao impor type hinting estrito em toda a biblioteca, ele previne erros de tipo em tempo de execução e inconsistências de tipagem.
+
+### 3.4.3 Automação e Testes
+* **pytest:** O framework de testes utilizado para validar constantes físicas, relações de anticonutação de operadores e convergência de solvers. A suíte de testes é projetada para modularidade, permitindo que componentes individuais (ex: o Mapeador Jordan-Wigner) sejam verificados de forma independente.
+* **pre-commit:** Gerencia Git hooks para executar as verificações do Ruff, Pyright e Pytest automaticamente antes de cada commit, garantindo que apenas o código que atenda à linha de base de qualidade entre no repositório.
+
+# 4. Metodologia
+
+## 4.1 Fase 1: Fundamentos Algébricos e Mapeamento Fermiônico
+
+### 4.1.1 Objetivos
+O objetivo principal da Fase 1 foi construir a álgebra de operadores fundamental necessária para o modelo de Hubbard.
+
+Isso envolveu estabelecer a base computacional para um sistema de múltiplos sítios e implementar a lógica de transformação para representar operadores fermiônicos em um formato matricial.
+
+### 4.1.2 Implementação Física: Mapeador Jordan-Wigner
+O desafio técnico central foi traduzir os operadores de segunda quantização ($c_i, c_i^\dagger$) em uma representação numérica concreta, preservando o Princípio de Exclusão de Pauli.
+
+O `JordanWignerMapper` foi implementado para construir sistematicamente operadores de múltiplos qubits. Para um sistema com $N$ spin-orbitais, o mapeador constrói as strings de paridade (cadeias de $Z$) necessárias para manter a anticonutação. Isso foi verificado testando a relação fundamental $\{c_i, c_j^\dagger\} = \delta_{ij}$ em todas as matrizes geradas.
+
+### 4.1.3 Arquitetura de Software: Primeiro Backend Concreto
+Para executar essas operações, a primeira iteração da classe base `OperatorBackend` foi implementada:
+
+- **NumpyBackend:** Utiliza `numpy` para representações de matrizes densas e operações de álgebra linear.
+- **Produtos de Kronecker:** Operadores de múltiplos sítios foram construídos utilizando produtos tensoriais recursivos para escalonar os operadores de 1-corpo e 2-corpos para o espaço de Hilbert completo de $2^N$.
+
+### 4.1.4 Resultados
+A Fase 1 foi concluída com uma biblioteca verificada de operadores básicos:
+
+- **Matrizes de Criação/Aniquilação** para contagens arbitrárias de sítios
+- **Operadores Número** ($\hat{n}_i$) para cada spin-orbital.
+- **Operador Número Total** ($\hat{N}_{total} = \sum \hat{n}_i$).
+
+A implementação bem-sucedida desses operadores forneceu os blocos de construção necessários para a implementação do Hamiltoniano de Hubbard completo na Fase 2.
+
+## 4.2 Fase 2: Solução Exata e Imposição do Setor de Simetria
+
+### 4.2.1 Objetivos
+O objetivo da Fase 2 foi estabelecer uma "Verdade Fundamental" (Ground Truth) para o Dímero de Hubbard através do **Full Configuration Interaction** (FCI).
+
+Isso envolveu a construção do Hamiltoniano (integrando tanto os termos de salto quanto os de interação) e a diagonalização da matriz resultante para observar a transição física de um estado metálico para um estado isolante.
+
+### 4.2.2 O Problema da Ejeção de Elétrons
+Durante as execuções iniciais, o solver exato produziu resultados não-físicos no regime de alto $U$.
+
+Como o sistema foi construído sem restrições (o que estava incorreto), a diagonalização numérica priorizou o mínimo global do espaço de Hilbert de 4 qubits.
+
+Conforme $U$ aumentava, o custo energético de manter dois elétrons em uma rede de 2 sítios ($N=2$) eventualmente excedeu a energia de estados com menos elétrons. Consequentemente, o solver "ejetou" um elétron para evitar a penalidade de $U$, estabelecendo-se no setor $N=1$.
+
+![Dímero de Hubbard (L=2): Ejeção de Elétrons](../plots/phase2_unconstrained_solution.jpeg)
+
+Isso resultou em um patamar de energia em aproximadamente $-1.0$ e uma queda súbita da dupla ocupação para zero, falhando efetivamente em representar a física de Mott de um sistema fechado.
+
+### 4.2.3 Correção: Projeção do Número de Partículas
+Para corrigir isso, a lógica do solver foi atualizada para impor o **regime de meio-preenchimento** (forçando $N=2$). Isso foi implementado através de:
+
+1. Diagonalização do Hamiltoniano completo para obter o conjunto de todos os autovalores e autovetores.
+2. Projeção de cada autovetor no **Operador Número Total** ($\hat{N}$) construído na Fase 1.
+3. Filtragem dos resultados para selecionar apenas o estado de menor energia que satisfaça $\bra{\psi} \hat{N} \ket{\psi} = 2$.
+
+### 4.2.4 Resultados e Análise Física
+Com a restrição de $N=2$ aplicada, o sistema demonstrou corretamente a **Transição de Mott**:
+
+![Dímero de Hubbard (L=2): Transição de Mott](../plots/phase2_exact_solution.png)
+
+* **Energia do Estado Fundamental ($E_0$):** Em $U=0$, a energia começa em $-2.0$ (o limite de ligação não-interagente) e aproxima-se assintoticamente de $0$ conforme $U$ aumenta, refletindo a supressão do salto cinético.
+* **Dupla Ocupação ($\langle D \rangle$):** O observável começa em $0.5$ e decai em direção a $0$. Isso confirma que os elétrons estão se localizando em sítios individuais para minimizar a repulsão de Coulomb, uma característica de sistemas eletrônicos fortemente correlacionados.
+
+## 4.3 Fase 3: Lattice DFT Clássico e Correlation Energy Gap
+
+### 4.3.1 Objetivos
+O objetivo da Fase 3 foi aproximar o estado fundamental do Dímero de Hubbard utilizando a Teoria do Funcional da Densidade na Rede (LDFT) clássica.
+
+Ao substituir as interações eletrônicas complexas de dois corpos por um potencial de um corpo efetivo, visamos avaliar o desempenho e as limitações inerentes das aproximações de campo médio em sistemas fortemente correlacionados.
+
+### 4.3.2 O Loop de Self-Consistent Field (SCF)
+O solver foi estruturado como um processo SCF iterativo centrado no potencial de Hartree.
+
+O algoritmo seguiu os seguintes passos:
+
+1.  **Construção do Hamiltoniano Efetivo:** Linearização do termo de interação de forma que cada elétron sinta um potencial repulsivo médio $V_{i,\sigma} = U \langle n_{i,-\sigma} \rangle$.
+2.  **Otimização Iterativa:** Partindo de um chute inicial de densidade, o sistema diagonalizou repetidamente o Hamiltoniano de partícula única e atualizou as densidades de sítio.
+3.  **Estratégia de Mistura (Mixing):** Para garantir a convergência, especialmente no regime de alto $U$ onde o potencial oscila, um parâmetro de mistura linear foi aplicado às atualizações de densidade.
+
+### 4.3.3 Resultados: Análise do Gap de Correlação
+O benchmark contra a solução Exata (FCI) revela a quebra da teoria de campo médio conforme a força de interação aumenta:
+
+![Dímero de Hubbard (L=2): Exato vs DFT](../plots/phase3_dft_comparison.png)
+
+* **Precisão em Baixo $U$:** No limite não-interagente ($U=0$), o resultado do LDFT é exato, resultando em uma energia de $-2.00$.
+* **Desvio e Erro Máximo:** Conforme $U$ aumenta, a curva do LDFT superestima consistentemente a energia do estado fundamental. A discrepância máxima observada (Gap de Correlação) atinge $0.4722$.
+* **Instabilidade em Alto $U$:** Para valores altos de $U$ (representados por $8 \leq U < 9$ na imagem), o loop clássico exibe instabilidade numérica e problemas de convergência, falhando em capturar corretamente o comportamento assintótico em direção à energia zero.
+
+### 4.3.4 Conclusão e Análise Física
+O "Gap de Energia de Correlação" observado é uma consequência direta da aproximação de Hartree. Dado que o LDFT considera apenas a densidade média, ele perde a **correlação dinâmica** (a esquiva instantânea entre os elétrons).
+
+Esta fase confirmou que, embora o DFT seja computacionalmente eficiente, ele é fisicamente insuficiente para descrever a física de Mott, necessitando de uma abordagem quântica para recuperar a energia de correlação faltante.
+
+## 4.4 Fase 4: VQE Quântico e Recuperação de Correlação
+
+### 4.4.1 Objetivos
+A fase final visou alavancar Algoritmos Quânticos Variacionais para preencher o gap de correlação identificado na Fase 3.
+
+O objetivo foi implementar um pipeline de VQE utilizando o `PennyLaneBackend` e demonstrar que um circuito quântico poderia recuperar a energia exata do estado fundamental em todo o espectro de $U$.
+
+### 4.4.2 Os Ansätze: De HVA para HEA
+Inicialmente, um **Hamiltonian Variational Ansatz (HVA)** foi implementado. O HVA é motivado fisicamente, pois evolui o estado usando os próprios termos do Hamiltoniano de Hubbard. No entanto, esta abordagem encontrou uma "Armadilha de Simetria":
+
+- **Erro:** No limite não-interagente ($U=0$), o VQE convergiu consistentemente para uma energia de $-1.0$ em vez dos $-2.0$ exatos.
+- **Causa Provável:** O HVA, combinado com uma inicialização simples de estado de produto, travou o otimizador no **setor Triplet**. Como as operações do HVA preservam as simetrias do estado inicial, o otimizador foi matematicamente incapaz de explorar o **setor Singlet**, onde reside o verdadeiro estado fundamental.
+
+Para resolver isso, a arquitetura foi refatorada para um **Hardware-Efficient Ansatz (HEA)**.
+
+Ao utilizar rotações genéricas $RX$ e $RY$ em cada qubit e um anel de emaranhadores $CNOT$, o HEA forneceu a expressividade necessária para quebrar as restrições de simetria e navegar por todo o espaço de Hilbert.
+
+### 4.4.3 Termo de Penalidade
+Embora o HEA tenha permitido que o VQE atingisse a linha de base de $-2.0$ em $U=0$, ele introduziu uma nova instabilidade em forças de interação mais altas.
+
+Sem restrições físicas, o HEA expressivo sofreu do mesmo problema de "Ejeção de Elétrons" observado na Fase 2, frequentemente derivando para o setor $N=1$ para minimizar a energia.
+
+A solução foi a implementação de um **Multiplicador de Lagrange (Termo de Penalidade)** dentro da função de custo:
+$$C(\theta) = \bra{\psi(\theta)} H \ket{\psi(\theta)} + \lambda (\bra{\psi(\theta)} \hat{N} \ket{\psi(\theta)} - N_{target})^2$$
+
+Ao definir o coeficiente de penalidade como $\lambda = 15.0$ e $N_{target} = 2.0$, o otimizador foi forçado a priorizar estados dentro do regime de meio-preenchimento.
+
+Isso garantiu que o VQE permanecesse fisicamente consistente com o Dímero de Hubbard como um sistema fechado.
+
+### 4.4.4 Resultados: Benchmark Final
+Utilizando o **otimizador Adam** com uma taxa de aprendizado de $0.06$ e $3$ camadas do HEA, o VQE recuperou com sucesso a energia de correlação:
+
+![Dímero de Hubbard (L=2): Benchmark Final Multi-Solver](../plots/phase4_final_benchmark.png)
+
+- **Recuperação de Correlação:** Ao contrário do Lattice DFT, os pontos do VQE situam-se diretamente sobre a linha Exata (FCI).
+- **Precisão em alto $U$:** Mesmo no regime fortemente correlacionado ($U=10$), o VQE manteve alta precisão, demonstrando sua capacidade de lidar com a transição de Mott onde os métodos clássicos de campo médio falham.
+
+## 4.5 Discussão de Resultados e Comparação de Frameworks
+
+O benchmark consolidado entre todos os solvers implementados ilustra as forças específicas e os modos de falha de cada abordagem numérica.
+
+### 4.5.1 Análise Comparativa Final
+- **Exato (FCI):** Serve como a linha de base teórica, mostrando o aumento assintótico suave da energia do estado fundamental em direção a zero à medida que os elétrons se localizam.
+- **Lattice DFT:** Demonstra um "Gap de Energia de Correlação" consistente e instabilidade numérica significativa para $U > 7,5$. A aproximação de campo médio falha em capturar a natureza localizada da transição de Mott, resultando em picos de energia não-físicos.
+- **VQE (PennyLane HEA):** Supera com sucesso o gap de correlação. Ao utilizar um Hardware-Efficient Ansatz expressivo e uma penalidade de número de partículas, os resultados do VQE acompanham de perto a curva Exata (FCI). Embora alguma variância numérica menor seja observada em alto $U$, provavelmente devido à natureza e configuração da etapa de otimização, a abordagem quântica recupera corretamente a energia de correlação que o DFT perde.
+
+# 5. Conclusão
+
+Este projeto estabeleceu com sucesso um pipeline modular e agnóstico a frameworks para simular sistemas eletrônicos fortemente correlacionados. Ao progredir através de quatro fases distintas de desenvolvimento, transitamos de fundações algébricas fermiônicas manuais para uma otimização quântica variacional complexa.
+
+### 5.1 Principais Conquistas Técnicas
+1.  **Integridade Algébrica:** Validação da transformação manual de Jordan-Wigner e da construção de operadores no espaço de Fock, garantindo que o Princípio de Exclusão de Pauli fosse mantido em todos os backends computacionais.
+2.  **Padrões Arquiteturais:** Implementação de uma arquitetura baseada em _Strategy Pattern_ que permitiu um benchmarking contínuo entre solvers clássicos baseados em NumPy e simuladores quânticos com PennyLane.
+3.  **Descoberta Física:** Quantificação das limitações da teoria de campo médio clássica (Lattice DFT) e demonstração de que Algoritmos Quânticos Variacionais podem capturar efetivamente os efeitos de correlação de muitos corpos necessários para descrever a Transição de Mott.
+
+### 5.2 Perspectivas Futuras
+A conclusão deste projeto serve como um "Hello World" para a pesquisa geral em física da matéria condensada, estabelecendo a lógica fundamental necessária para simular sistemas de muitos corpos.
+
+Este trabalho fornece a intuição técnica e física necessária para abordar projetos avançados de simulação quântica. A próxima iteração deste trabalho (continuado como um projeto pessoal) focará em:
+
+- Integrar o `QiskitBackend` para comparar o desempenho entre diferentes SDKs quânticos.
+- Explorar otimizadores resilientes ao ruído (ex: SPSA) para preparar a execução em hardware **Near-term Intermediate Scale Quantum (NISQ)**.
+- Escalonar a metodologia do Dímero de Hubbard para redes periódicas maiores e materiais mais complexos.
+
+Por fim, este trabalho demonstra que algoritmos quânticos, mesmo diante dos desafios de otimização variacional, oferecem um caminho fisicamente superior para a pesquisa em ciência dos materiais, onde as aproximações clássicas de campo médio são fundamentalmente insuficientes.
