@@ -247,8 +247,9 @@ This is achieved through several key engineering patterns:
 - **Modularity:** Physics modules (Hubbard Model, Jordan-Wigner mapping) are independent of the solver logic (DFT, VQE).
 - **Extensibility:** The architecture is designed to support additional backends (e.g., Qiskit) without requiring changes to the core physics engine.
 
-## 3.2 Framework-Agnostic Algebra: The OperatorBackend
+## 3.2 Framework-Agnostic Algebra
 At the core of the system is the `OperatorBackend` interface. This abstract layer defines the standard operations required for many-body physics, such as:
+
 - Matrix multiplication and inner products.
 - Diagonalization (Eigenvalue problems).
 - Tensor products (Kronecker products) for building multi-site operators.
@@ -433,15 +434,6 @@ This project successfully established a modular, framework-agnostic pipeline for
 1.  **Algebraic Integrity:** Validated the manual Jordan-Wigner transformation and Fock space operator construction, ensuring the Pauli Exclusion Principle was maintained across all computational backends.
 2.  **Architectural Patterns:** Implemented a "Strategy Pattern" architecture that allowed for seamless benchmarking between classical NumPy-based solvers and PennyLane quantum simulators.
 3.  **Physical Discovery:** Quantified the limitations of classical mean-field theory (Lattice DFT) and demonstrated that Variational Quantum Algorithms can effectively capture the many-body correlation effects required to describe the Mott Transition.
-
-### 5.2 Future Outlook
-The completion of this "hello world" project provides the necessary technical and physical intuition to tackle the reproduction of the Phasecraft **Quantum Enhanced Density Functional Theory (QEDFT)** research. The next iteration of this work will focus on:
-
-- Implementing the `QiskitBackend` to compare performance across different quantum SDKs.
-- Exploring noise-robust optimizers (e.g., SPSA) to prepare for execution on **Near-term Intermediate Scale Quantum (NISQ)** hardware.
-- Scaling the methodology from the Hubbard Dimer to larger periodic lattices.
-
-In summary, this work demonstrates that quantum algorithms, even in the presence of variational optimization challenges, offer a physically superior path for materials science research where classical mean-field approximations are fundamentally insufficient.
 
 ### 5.2 Future Outlook
 The completion of this project serves as a "Hello World" for general research in condensed matter physics, establishing the foundational logic required to simulate many-body systems.
