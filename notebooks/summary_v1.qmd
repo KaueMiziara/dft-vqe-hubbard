@@ -1,0 +1,287 @@
+---
+title: "Variational Quantum Solutions for the Hubbard Dimer"
+subtitle: "Benchmark Analysis: Exact Diagonalization, Lattice DFT, and VQE"
+author: "Kauê Miziara"
+date: "2026-02-03"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    theme: cosmo
+    self-contained: true
+  pdf:
+    documentclass: report
+    papersize: a4
+    geometry:
+      - top=30mm
+      - left=20mm
+      - heightrounded
+---
+
+# 1. Introduction
+
+## 1.1 Project Overview
+This project implements a multi-method computational study of the Hubbard Dimer, a fundamental model in condensed matter physics. The primary objective is to evaluate the efficacy of classical and quantum-classical hybrid algorithms in capturing electronic correlation.
+
+By defining a framework-agnostic pipeline, this work benchmarks three distinct approaches:
+
+1.  **Full Configuration Interaction (FCI):** Direct numerical diagonalization.
+2.  **Lattice Density Functional Theory (LDFT):** Classical mean-field approximation.
+3.  **Variational Quantum Eigensolver (VQE):** Quantum-native optimization using the Hardware-Efficient Ansatz (HEA).
+
+## 1.2 The Importance of Condensed Matter Physics
+Condensed matter physics explores the macroscopic and microscopic properties of matter, especially in phases where interactions between many particles are strong. Understanding these interactions is the bottleneck for developing high-temperature superconductors, efficient catalysts, and novel semiconductor materials.
+
+> The central challenge in the field is the **Many-Body Problem**. Since electrons are indistinguishable fermions, their wavefunctions are anti-symmetric and highly entangled.
+
+In "strongly correlated" systems, the behavior of a single electron cannot be described independently of the others, rendering single-particle approximations (like basic _Hartree-Fock_ or standard _DFT_) physically insufficient.
+
+## 1.3 Objectives
+The _Hubbard Dimer_ is the simplest non-trivial realization of the _Hubbard model_. It is used here as a controlled environment to study the **Mott Transition**.
+
+This project serves as an exercise to:
+
+- Validate the manual implementation of **Jordan-Wigner transformations**.
+- Quantify the **Correlation Energy Gap** where classical Lattice DFT deviates from exact solutions.
+- Demonstrate the successful recovery of this correlation energy using **Variational Quantum Algorithms**.
+
+# 2. Physical Foundations
+
+## 2.1 The Many-Body Problem and Computational Complexity
+The central challenge in quantum chemistry and condensed matter physics is the Many-Body Problem. For a system of $N$ interacting electrons, the wavefunction $\Psi(\mathbf{r}_1, \mathbf{r}_2, \dots, \mathbf{r}_N)$ depends on $3N$ spatial coordinates and $N$ spin coordinates.
+
+Since electrons are fermions, the wavefunction must be anti-symmetric under the exchange of any two particles, leading to complex correlation effects.
+
+### 2.1.1 The Exponential Wall
+The Hilbert space dimension of a quantum system scales exponentially with the number of particles. For a system with $M$ orbitals and $N$ electrons, the number of possible configurations (basis states) is given by the binomial coefficient:
+$$\dim(\mathcal{H}) = \binom{2M}{N}$$
+This exponential scaling renders _Exact Diagonalization_ (FCI) computationally intractable for systems exceeding a few dozen electrons. Classical approximations are required to map this many-body complexity onto simpler, tractable models.
+
+## 2.2 The Hubbard Model
+The Hubbard model is the simplest approximation used to study the transition between **conducting** and **insulating** phases in solid-state systems.
+
+It simplifies the full electronic structure by assuming electrons only occupy discrete _lattice sites_ and only interact when they reside _on the same_ site.
+
+### 2.2.1 The Hubbard Hamiltonian
+In quantum mechanics, the Hamiltonian ($H$) is the operator corresponding to the total energy of the system. For the Hubbard model, the Hamiltonian is expressed as:
+
+$$H = -t \sum_{\langle i,j \rangle, \sigma} (c_{i\sigma}^\dagger c_{j\sigma} + c_{j\sigma}^\dagger c_{i\sigma}) + U \sum_i n_{i\uparrow}n_{i\downarrow}$$
+
+In which:
+
+- $c_{i\sigma}^\dagger, c_{i\sigma}$: Creation and annihilation operators for an electron at site $i$ with spin $\sigma$.
+- $n_{i\sigma}$: Number operator ($n_{i\sigma} = c_{i\sigma}^\dagger c_{i\sigma}$).
+- $\sigma$: Spin index, typically $\uparrow$ (up) or $\downarrow$ (down).
+- $t$: Hopping integral (kinetic energy scale).
+- $U$: On-site Coulomb repulsion (potential energy scale).
+
+#### $\dagger$ The Hopping Term (Kinetic Energy)
+The term $-t(c_{i\sigma}^\dagger c_{j\sigma} + c_{j\sigma}^\dagger c_{i\sigma})$ describes the kinetic behavior of the system:
+
+- **Annihilation ($c_{j\sigma}$):** Removes an electron from site $j$.
+- **Creation ($c_{i\sigma}^\dagger$):** Places an electron at site $i$.
+
+The sum of these operations represents the tunneling of an electron between adjacent sites.
+This process lowers the kinetic energy of the system by allowing electrons to delocalize across the lattice.
+
+#### $\dagger$ The Interaction Term (Potential Energy)
+The term $U(n_{i\uparrow}n_{i\downarrow})$ describes the electronic correlation:
+
+* **Number Operators ($n_{i\uparrow}, n_{i\downarrow}$):** These operators return the occupancy of the specific spin state at site $i$, which could be either 0 or 1.
+* **On-site Repulsion:** The product $n_{i\uparrow}n_{i\downarrow}$ is non-zero only when site $i$ is doubly occupied. In this case, the system's energy is increased by $U$, representing the electrostatic repulsion between two electrons in the same spatial orbital.
+
+### 2.2.2 Fock Space and Second Quantization
+To represent states with varying numbers of particles, we utilize **Fock Space** ($\mathcal{F}$), which is the direct sum of Hilbert spaces for $N=0, 1, 2, \dots$ particles.
+
+A state in this space is represented by an occupation number vector:
+$$\ket{\psi} = \ket{n_1, n_2, \dots, n_M}$$
+where $n_i \in \{0, 1\}$ represents the occupancy of the $i$-th spin-orbital.
+
+#### $\dagger$ Creation and Annihilation Operators
+The dynamics in Fock space are governed by operators that transition between these occupancy states:
+
+1.  **Creation Operator ($c_i^\dagger$):** Places an electron in orbital $i$.
+$$c_i^\dagger \ket{n_1, \dots, 0_i, \dots, n_M} = (-1)^{\sum_{k<i} n_k} \ket{n_1, \dots, 1_i, \dots, n_M}$$
+2.  **Annihilation Operator ($c_i$):** Removes an electron from orbital $i$.
+$$c_i \ket{n_1, \dots, 1_i, \dots, n_M} = (-1)^{\sum_{k<i} n_k} \ket{n_1, \dots, 0_i, \dots, n_M}$$
+
+The phase factor $(-1)^{\sum_{k<i} n_k}$ tracks the number of occupied states preceding the $i$-th site, ensuring that the operators satisfy the **canonical anti-commutation relations**:
+$$\{c_i, c_j^\dagger\} = \delta_{ij}$$
+$$\{c_i, c_j\} = \{c_i^\dagger, c_j^\dagger\} = 0$$
+
+## 2.3 The Jordan-Wigner Mapping
+The fundamental difficulty in quantum simulation is that qubit operators (Pauli gates) commute when acting on different qubits ($[X_i, X_j] = 0$), whereas fermion operators must anti-commute ($\{c_i, c_j\} = 0$).
+
+The Jordan-Wigner mapping solves this by representing the fermion operators as a combination of Pauli matrices and a "parity string" of $Z$ operators:
+
+$$c_j^\dagger \rightarrow \left( \bigotimes_{k < j} Z_k \right) \otimes \sigma^+_j \otimes \left( \bigotimes_{j < k < N} \mathbb{I}_k \right)$$
+$$c_j \rightarrow \left( \bigotimes_{k < j} Z_k \right) \otimes \sigma^-_j \otimes \left( \bigotimes_{j < k < N} \mathbb{I}_k \right)$$
+
+### 2.3.1 Interpretation of the Mapping
+- **The Raising/Lowering Operators:** The term $\sigma^\pm$ corresponds to the qubit ladder operators $\sigma_\pm$, which flip the state of the $j$-th qubit between $\ket{0}$ and $\ket{1}$. It is such as:
+$$\sigma^\pm = \frac{1}{2}(X \mp iY)$$
+$$(\sigma^+)^\dagger=\sigma^- \leftrightarrow{} (\sigma^-)^\dagger=\sigma^+$$
+- **The Parity String:** The string of $Z$ operators ($Z_0 \otimes Z_1 \otimes \dots \otimes Z_{j-1}$) stores the cumulative parity of the preceding qubits. This ensures that when an operation is performed on site $j$, the resulting state picks up the correct physical sign $(-1)$ required by the Pauli Exclusion Principle.
+
+## 2.4 The Mott Transition and Double Occupancy
+The Mott transition is a metal-to-insulator transition driven by electron-electron correlations rather than traditional band theory.
+
+In a standard metal, electrons are delocalized and can flow freely under an electric field. However, in certain materials, the repulsive force between electrons becomes so strong that they "lock" into position, one per site, effectively halting conduction.
+
+### 2.4.1 The Competition of Scales
+The state of the system is determined by the ratio $U/t$:
+
+- **Weakly Correlated Regime ($U/t \ll 1$):** Kinetic energy dominates. Electrons delocalize across the lattice to minimize their energy, and the system behaves as a metal.
+- **Strongly Correlated Regime ($U/t \gg 1$):** Potential energy dominates. The cost of two electrons occupying the same site ($U$) outweighs the energy gain from hopping ($t$). The electrons localize to avoid the penalty, leading to a **Mott Insulator**.
+
+### 2.4.2 Double Occupancy as a Physical Observable
+To quantify this transition, we define the **Double Occupancy** ($\langle D \rangle$), which measures the average number of sites containing two electrons:
+$$\langle D \rangle = \frac{1}{L} \sum_{i=1}^L \langle n_{i\uparrow} n_{i\downarrow} \rangle$$
+
+Where $L$ is the number of sites.
+
+In the non-interacting limit ($U=0$), electrons are distributed statistically, and $\langle D \rangle$ is at its maximum. As $U$ increases, $\langle D \rangle$ serves as an order parameter for the Mott transition; its decay toward zero is the signature of electrons localizing and the system entering the insulating phase.
+
+## 2.5 The Hubbard Dimer
+The Hubbard Dimer is the $L=2$ case of the model, representing two sites with four possible spin-orbitals: $0\uparrow, 0\downarrow, 1\uparrow, 1\downarrow$.  At **half-filling** ($N=2$ electrons), it is the smallest system that captures the physics described above.
+
+In the dimer, the Mott transition is manifested as the crossover between:
+
+1.  **The Bonding Singlet State:** For $U=0$, the ground state is a superposition where both electrons share the lower-energy spatial orbital.
+2.  **The Localized (Heisenberg) Limit:** For $U \to \infty$, the ground state approaches a configuration where each site is occupied by exactly one electron with opposite spins, minimizing $U$ while maintaining the lowest possible symmetry-allowed energy.
+
+## 2.6 The Limitations of Exact Solvers
+While _Full Configuration Interaction_ (FCI), which is the direct diagonalization of the Hamiltonian, provides the exact ground state energy and wavefunction, its application is severely limited by the dimensionality of the problem.
+
+### 2.6.1 Basis State Explosion
+As previously established, the Hilbert space dimension grows binomially with the number of orbitals. For a Hubbard model with $L$ sites at half-filling ($N=L$), and considering spin degrees of freedom ($2L$ spin-orbitals), the size of the Hamiltonian matrix is:
+$$\dim(\mathcal{H}) = \binom{2L}{L}$$
+
+For $L=2$ (Dimer), the dimension is $\binom{4}{2} = 6$, trivial for modern hardware. However, for a system of only $L=20$ sites, the dimension exceeds $137$ billion.
+
+Storing such a matrix in memory requires hundreds of gigabytes, and diagonalizing it to find the lowest eigenvalue becomes computationally prohibitive.
+
+### 2.6.2 The Need for Approximations
+Since most industrially relevant materials and chemical catalysts involve hundreds (or thousands) of electrons, we cannot rely on exact methods.
+
+Common techniques employed are:
+
+1.  **Classical Mean-Field Theories (DFT):** These reduce the many-body problem to a single-particle problem by approximating the complex electron-electron interactions.
+2.  **Variational Quantum Algorithms (VQE):** These leverage quantum hardware to represent the exponentially large wavefunction in a naturally compressed format, using the variational principle to find the ground state.
+
+## 2.7 Lattice Density Functional Theory (LDFT)
+_Density Functional Theory_ (DFT) is the most widely used classical method for electronic structure calculations.
+
+It is based on the Hohenberg-Kohn theorems, which state that the ground state properties of a many-electron system are uniquely determined by its electron density profile rather than its complex many-body wavefunction.
+
+### 2.7.1 The Kohn-Sham Approach
+To make the problem tractable, the interacting many-body system is mapped onto a system of non-interacting particles moving in an effective local potential.
+
+In the context of the Lattice Hubbard model, this effective potential must account for the on-site repulsion $U$ without explicitly calculating the two-body correlations.
+
+### 2.7.2 The Hartree Potential and Mean-Field Approximation
+The primary approximation used in this project is the **Mean-Field (Hartree) approximation**.
+
+We replace the two-body interaction term $U n_{i\uparrow}n_{i\downarrow}$ with a single-particle potential where each electron interacts with the *average* density of electrons with opposite spin:
+$$V_{i,\sigma}^{Hartree} = U \langle n_{i,-\sigma} \rangle$$
+
+> This transforms the complex interaction term into a site-dependent potential energy.
+
+The Hamiltonian becomes "linearized" in terms of single-particle operators, which can be solved using standard matrix diagonalization.
+
+### 2.7.3 The Self-Consistent Field (SCF) Loop
+Since the Hartree potential depends on the electron densities ($\langle n \rangle$), and the densities are determined by the eigenvectors of the Hamiltonian, the problem must be solved iteratively.
+
+This is known as the **Self-Consistent Field (SCF) loop**:
+
+1.  **Initialization:** Assume an initial guess for the site densities $\langle n_{i\sigma} \rangle$.
+2.  **Construct Hamiltonian:** Build the effective single-particle Hamiltonian using the current densities to calculate the Hartree potential.
+3.  **Diagonalization:** Solve the Hamiltonian to find the new single-particle wavefunctions (Kohn-Sham orbitals).
+4.  **Density Update:** Calculate the new densities from the occupied orbitals.
+5.  **Convergence Check:** Compare the new densities with the previous iteration. If the change is below a defined threshold, the system is "Self-Consistent"; otherwise, repeat from step 2.
+
+### 2.7.4 The Correlation Gap
+While LDFT is computationally efficient, its reliance on the average density means it fails to capture **dynamical correlation**.
+
+In the high-$U$ regime of the Hubbard Dimer, the mean-field approximation significantly underestimates the energy because it cannot properly account for the "instantaneous" avoidance between electrons.
+
+This discrepancy between the DFT result and the Exact solution is known as the **Correlation Energy**.
+
+## 2.8 The Variational Quantum Eigensolver (VQE)
+The _Variational Quantum Eigensolver_ is a hybrid quantum-classical algorithm designed to find the ground state energy of a given Hamiltonian.
+
+While DFT relies on approximating the interaction potential, VQE utilizes the **Variational Principle** to optimize a trial wavefunction (Ansatz) until it approximates the true many-body ground state.
+
+### 2.8.1 The Variational Principle
+The mathematical foundation of VQE is the variational theorem, which states that, for any normalized trial wavefunction $\ket{\psi(\theta)}$, the expectation value of the Hamiltonian $H$ is always an upper bound to the true ground state energy $E_0$:
+$$E(\theta) = \frac{\bra{\psi(\theta)} H \ket{\psi(\theta)}}{\braket{\psi(\theta) | \psi(\theta)}} \geq E_0$$
+
+The goal of the algorithm is to minimize $E(\theta)$ by iteratively adjusting the parameters $\theta$ using a classical optimizer.
+
+### 2.8.2 Hybrid Quantum-Classical Workflow
+The VQE distributes the computational load between quantum and classical hardware:
+
+1.  **Quantum Processor (QPU):** Prepares the state $\ket{\psi(\theta)}$ on a quantum register and measures the expectation values of the Pauli strings that compose the Hamiltonian.
+2.  **Classical Processor (CPU):** Sums the measured expectation values to calculate the total energy $E(\theta)$ and uses an optimization algorithm (e.g., Adam, COBYLA) to suggest new parameters $\theta$.
+
+### 2.8.3 Overcoming the Correlation Gap
+Unlike the mean-field approach of DFT, which reduces electron interactions to an average potential, the VQE prepares a state on the QPU that can naturally represent entanglement and complex correlations.
+
+By using a sufficiently expressive **Ansatz**, the VQE can explore the full Hilbert space and converge to the exact FCI energy, effectively recovering the correlation energy that classical approximations lose in the high-$U$ regime.
+
+## 2.9 Linking Theory and Computation
+The mathematical complexity of the Jordan-Wigner transformation and the iterative nature of the SCF and VQE loops necessitate an architecture that prioritizes modularity and numerical precision.
+
+The following section details the software engineering principles employed to translate these physical foundations into a scalable, framework-agnostic codebase.
+
+# 3. Software Architecture
+
+## 3.1 Design Philosophy: Separation of Concerns
+The project is built on the principle of **Separation of Concerns (SoC)**. By decoupling the physical definitions (Hamiltonians, Models) from the mathematical backends (Numpy, PennyLane), the library ensures that the physics remains immutable regardless of the computational tool used.
+
+This is achieved through several key engineering patterns:
+
+- **Abstraction Layer:** The algebra is handled by an abstract base class, ensuring the same physical logic can be executed on a classical CPU or a Quantum Simulator/Processor.
+- **Modularity:** Physics modules (Hubbard Model, Jordan-Wigner mapping) are independent of the solver logic (DFT, VQE).
+- **Extensibility:** The architecture is designed to support additional backends (e.g., Qiskit) without requiring changes to the core physics engine.
+
+## 3.2 Framework-Agnostic Algebra: The OperatorBackend
+At the core of the system is the `OperatorBackend` interface. This abstract layer defines the standard operations required for many-body physics, such as:
+- Matrix multiplication and inner products.
+- Diagonalization (Eigenvalue problems).
+- Tensor products (Kronecker products) for building multi-site operators.
+- Pauli string manipulation for quantum circuits.
+
+### 3.2.1 Dependency Injection
+The solvers (both `LatticeDFT` and `VQESolver`) do not instantiate their own backends. Instead, they use **Dependency Injection**.
+
+A concrete backend (e.g., `NumpyBackend`) is passed to the solver at runtime. This allows for:
+
+1. **Unit Testing:** Replacing complex backends with mocks for faster testing.
+2. **Framework Swapping:** Running the same Hubbard Model instance through a classical exact solver and then a quantum VQE solver by simply injecting a different backend.
+
+## 3.3 Project Structure
+The repository is organized to reflect these architectural layers:
+
+- `src/`: The core library.
+    - `algebra/`: Contains the `OperatorBackend` interface and concrete implementations (e.g. `Numpy`, `PennyLane`).
+    - `physics/`: Defines the Hubbard Model, creation/annihilation operators, and the Jordan-Wigner Mapper.
+    - `quantum/`: Houses the VQE infrastructure, including Ansätze (HEA, HVA) and the optimization loops.
+    - `visualization/`: Decoupled plotting utilities for benchmarking results across phases.
+- `scripts/`: Executable code with implementation-specific workflows for benchmarking (Phase 1 through 4).
+
+## 3.4 Development Stack and Tooling
+
+The project utilizes a standardized Python toolchain focused on static analysis, type safety, and automated quality control.
+
+### 3.4.1 Package and Environment Management
+* **`uv`:** Employed as the primary package manager and build system. It provides high-performance dependency resolution and manages the virtual environment, ensuring reproducible builds across development environments.
+
+### 3.4.2 Static Analysis and Code Quality
+* **Ruff:** Used for linting and code formatting. It enforces a consistent style guide and identifies potential logic errors or dead code.
+* **Pyright:** Acts as the static type checker. By enforcing strict type hinting across the library, it prevents runtime type errors and typing inconsistencies.
+
+### 3.4.3 Automation and Testing
+* **pytest:** The testing framework used to validate physical constants, operator anti-commutation relations, and solver convergence. The test suite is designed for modularity, allowing individual components (e.g., the Jordan-Wigner Mapper) to be verified independently.
+* **pre-commit:** Manages Git hooks to execute Ruff, Pyright and Pytest checks automatically before every commit, ensuring that only code meeting the quality baseline enters the repository.
