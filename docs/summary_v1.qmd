@@ -4,12 +4,6 @@ subtitle: "Benchmark Analysis: Exact Diagonalization, Lattice DFT, and VQE"
 author: "Kauê Miziara"
 date: "2026-02-03"
 format:
-  html:
-    toc: true
-    toc-depth: 3
-    code-fold: true
-    theme: cosmo
-    self-contained: true
   pdf:
     documentclass: report
     papersize: a4
@@ -17,6 +11,13 @@ format:
       - top=30mm
       - left=20mm
       - heightrounded
+    header-includes:
+      - \usepackage{physics}
+      - \usepackage{amsmath}
+      - \usepackage{amssymb}
+    toc: true
+    # number-sections: true
+    colorlinks: true
 ---
 
 # 1. Introduction
@@ -285,3 +286,170 @@ The project utilizes a standardized Python toolchain focused on static analysis,
 ### 3.4.3 Automation and Testing
 * **pytest:** The testing framework used to validate physical constants, operator anti-commutation relations, and solver convergence. The test suite is designed for modularity, allowing individual components (e.g., the Jordan-Wigner Mapper) to be verified independently.
 * **pre-commit:** Manages Git hooks to execute Ruff, Pyright and Pytest checks automatically before every commit, ensuring that only code meeting the quality baseline enters the repository.
+
+# 4. Methodology
+
+## 4.1 Phase 1: Algebraic Foundations and Fermionic Mapping
+
+### 4.1.1 Objectives
+The primary goal of Phase 1 was to build the fundamental operator algebra required for the Hubbard model.
+
+This involved establishing the computational basis for a multi-site system and implementing the transformation logic to represent fermionic operators in a matrix format.
+
+### 4.1.2 Physical Implementation: The Jordan-Wigner Mapper
+The core technical challenge was translating the second-quantization operators ($c_i, c_i^\dagger$) into a concrete numerical representation while preserving the Pauli Exclusion Principle.
+
+The `JordanWignerMapper` was implemented to systematically construct multi-qubit operators. For a system with $N$ spin-orbitals, the mapper builds the parity strings ($Z$ chains) required to maintain anti-commutation. This was verified by testing the fundamental relation $\{c_i, c_j^\dagger\} = \delta_{ij}$ across the generated matrices.
+
+### 4.1.3 Software Architecture: The First Concrete Backend
+To execute these operations, the first iteration of the base `OperatorBackend` class was implemented:
+
+- **NumpyBackend:** Utilizes `numpy` for dense matrix representations and linear algebra operations.
+- **Kronecker Products:** Multi-site operators were built using recursive tensor products to scale the 1-body and 2-body operators to the full $2^N$ Hilbert space.
+
+### 4.1.4 Results
+Phase 1 was concluded with a verified library of basic operators:
+
+- **Creation/Annihilation matrices** for arbitrary site counts.
+- **Number Operators** ($\hat{n}_i$) for each spin-orbital.
+- **Total Number Operator** ($\hat{N}_{total} = \sum \hat{n}_i$).
+
+The successful implementation of these operators provided the necessary building blocks for the implementing the complete Hubbard Hamiltonian in Phase 2.
+
+## 4.2 Phase 2: Exact Solution and Symmetry Sector Enforcement
+
+### 4.2.1 Objectives
+The goal of Phase 2 was to establish a "Ground Truth" for the Hubbard Dimer by performing **Full Configuration Interaction** (FCI).
+
+This involved constructing the Hamiltonian (integrating both hopping and interaction terms) and diagonalizing the resulting matrix to observe the physical transition from a metallic to an insulating state.
+
+### 4.2.2 The Electron Ejection Problem
+During initial executions, the exact solver yielded unphysical results in the high-$U$ regime.
+
+Since it was built without constraints (which was wrong), the numerical diagonalization prioritized the global minimum of the 4-qubit Hilbert space.
+
+As $U$ increased, the energy cost of maintaining two electrons on a 2-site lattice ($N=2$) eventually exceeded the energy of states with fewer electrons. Consequently, the solver "ejected" an electron to avoid the $U$ penalty, settling in the $N=1$ sector.
+
+![Hubbard Dimer (L=2): Electron Ejection](../plots/phase2_unconstrained_solution.jpeg)
+
+This resulted in an energy plateau at approximately $-1.0$ and a sudden drop in double occupancy to zero, effectively failing to represent the Mott physics of a closed system.
+
+### 4.2.3 Fix: Particle Number Projection
+To fix this, the solver logic was updated to enforce the **half-filling regime** (forcing $N=2$). This was implemented by:
+
+1.  Diagonalizing the full Hamiltonian to obtain the set of all eigenvalues and eigenvectors.
+2.  Projecting each eigenvector onto the **Total Number Operator** ($\hat{N}$) built in Phase 1.
+3.  Filtering the results to select only the lowest energy state satisfying $\bra{\psi} \hat{N} \ket{\psi} = 2$.
+
+### 4.2.4 Results and Physics Analysis
+With the $N=2$ constraint applied, the system correctly demonstrated the **Mott Transition**:
+
+![Hubbard Dimer (L=2): Mott Transition](../plots/phase2_exact_solution.png)
+
+* **Ground State Energy ($E_0$):** At $U=0$, the energy starts at $-2.0$ (the non-interacting bonding limit) and asymptotically approaches $0$ as $U$ increases, reflecting the suppression of kinetic hopping.
+* **Double Occupancy ($\langle D \rangle$):** The observable starts at $0.5$ and decays toward $0$. This confirms the electrons are localizing on individual sites to minimize Coulomb repulsion, a characteristic of strongly correlated electron systems.
+
+## 4.3 Phase 3: Classical Lattice DFT and Correlation Energy Gap
+
+### 4.3.1 Objectives
+The objective of Phase 3 was to approximate the Hubbard Dimer ground state using classical Lattice Density Functional Theory (LDFT).
+
+By replacing the complex two-body electron interactions with an effective one-body potential, we aimed to evaluate the performance and inherent limitations of mean-field approximations in strongly correlated systems.
+
+### 4.3.2 The Self-Consistent Field (SCF) Loop
+The solver was structured as an iterative SCF process centered on the Hartree potential.
+
+The algorithm followed these steps:
+
+1.  **Effective Hamiltonian Construction:** Linearizing the interaction term such that each electron feels an average repulsive potential $V_{i,\sigma} = U \langle n_{i,-\sigma} \rangle$.
+2.  **Iterative Optimization:** Starting from an initial density guess, the system repeatedly diagonalized the single-particle Hamiltonian and updated the site densities.
+3.  **Mixing Strategy:** To ensure convergence, especially in the high-$U$ regime where the potential oscillates, a linear mixing parameter was applied to the density updates.
+
+### 4.3.3 Results: Analysis of the Correlation Gap
+The benchmark against the Exact (FCI) solution reveals the breakdown of mean-field theory as interaction strength increases:
+
+![Hubbard Dimer (L=2): Exact vs DFT](../plots/phase3_dft_comparison.png)
+
+* **Accuracy at Low $U$:** At the non-interacting limit ($U=0$), the LDFT result is exact, yielding an energy of $-2.00$.
+* **Deviation and Max Error:** As $U$ increases, the LDFT curve consistently overestimates the ground state energy. The maximum observed discrepancy (Correlation Gap) reaches $0.4722$.
+* **High-$U$ Instability:** For high $U$ values (depicted by $8 \leq U < 9$ in the picture), the classical loop exhibits numerical instability and convergence issues, failing to capture the asymptotic behavior toward zero energy correctly.
+
+### 4.3.4 Conclusion and Physics Analysis
+The observed "Correlation Energy Gap" is a direct consequence of the Hartree approximation. Since LDFT only considers the average density, it misses the **dynamical correlation** (the instantaneous avoidance between electrons).
+
+This phase confirmed that while DFT is computationally efficient, it is physically insufficient for describing Mott physics, necessitating a quantum approach to recover the missing correlation energy.
+
+## 4.4 Phase 4: Quantum VQE and Correlation Recovery
+
+### 4.4.1 Objectives
+The final phase aimed to leverage Variational Quantum Algorithms to bridge the correlation gap identified in Phase 3.
+
+The goal was to implement a VQE pipeline using the `PennyLaneBackend` and demonstrate that a quantum circuit could recover the exact ground state energy across the entire $U$ spectrum.
+
+### 4.4.2 The Ansätze: From HVA to HEA
+Initially, a **Hamiltonian Variational Ansatz (HVA)** was implemented. The HVA is physically motivated, as it evolves the state using the terms of the Hubbard Hamiltonian itself. However, this approach encountered a "Symmetry Trap":
+
+- **Error:** At the non-interacting limit ($U=0$), the VQE consistently converged to an energy of $-1.0$ instead of the exact $-2.0$.
+- **Possible Cause:** The HVA, combined with a simple product-state initialization, locked the optimizer into the **Triplet sector**. Because the HVA operations preserve the symmetries of the initial state, the optimizer was mathematically unable to explore the **Singlet sector** where the true ground state resides.
+
+To resolve this, the architecture was refactored to a **Hardware-Efficient Ansatz (HEA)**.
+
+By using generic $RX$ and $RY$ rotations on every qubit and a ring of $CNOT$ entanglers, the HEA provided the necessary expressivity to break symmetry constraints and navigate the full Hilbert space.
+
+### 4.4.3 Penalty Term
+While the HEA allowed the VQE to reach the $-2.0$ baseline at $U=0$, it introduced a new instability at higher interaction strengths.
+
+Without physical constraints, the expressive HEA suffered from the same "Electron Ejection" problem observed in Phase 2, frequently drifting into the $N=1$ sector to minimize energy.
+
+The solution was the implementation of a **Lagrange Multiplier (Penalty Term)** within the cost function:
+$$C(\theta) = \bra{\psi(\theta)} H \ket{\psi(\theta)} + \lambda (\bra{\psi(\theta)} \hat{N} \ket{\psi(\theta)} - N_{target})^2$$
+
+By setting the penalty coefficient to $\lambda = 15.0$ and $N_{target} = 2.0$, the optimizer was forced to prioritize states within the half-filling regime.
+
+This ensured that the VQE remained physically consistent with the closed-system Hubbard Dimer.
+
+### 4.4.4 Results: Final Benchmark
+Using the **Adam optimizer** with a learning rate of $0.06$ and $3$ layers of the HEA, the VQE successfully recovered the correlation energy:
+
+![Hubbard Dimer (L=2): Final Multi-Solver Benchmark](../plots/phase4_final_benchmark.png)
+
+- **Correlation Recovery:** Unlike Lattice DFT, the VQE points sit directly on the Exact (FCI) line.
+- **High-$U$ Accuracy:** Even in the strongly correlated regime ($U=10$), the VQE maintained high precision, demonstrating its capability to handle the Mott transition where classical mean-field methods fail.
+
+## 4.5 Results Discussion and Framework Comparison
+
+The consolidated benchmark across all implemented solvers illustrates the specific strengths and failure modes of each numerical approach.
+
+### 4.5.1 Final Comparison Analysis
+- **Exact (FCI):** Serves as the theoretical baseline, showing the smooth asymptotic rise of ground state energy toward zero as electrons localize.
+- **Lattice DFT:** Demonstrates a consistent "Correlation Energy Gap" and significant numerical instability for $U > 7.5$. The mean-field approximation fails to capture the localized nature of the Mott transition, resulting in unphysical energy spikes.
+- **VQE (PennyLane HEA):** Successfully bridges the correlation gap. By utilizing an expressive Hardware-Efficient Ansatz and a particle-number penalty, the VQE results closely track the Exact (FCI) curve. While some minor numerical variance is observed at high $U$, likely due to the nature and configuration of the optimization step, the quantum approach correctly recovers the correlation energy that DFT loses.
+
+# 5. Conclusion
+
+This project successfully established a modular, framework-agnostic pipeline for simulating strongly correlated electronic systems. By progressing through four distinct development phases, we transitioned from manual fermionic algebraic foundations to complex variational quantum optimization.
+
+### 5.1 Key Technical Achievements
+1.  **Algebraic Integrity:** Validated the manual Jordan-Wigner transformation and Fock space operator construction, ensuring the Pauli Exclusion Principle was maintained across all computational backends.
+2.  **Architectural Patterns:** Implemented a "Strategy Pattern" architecture that allowed for seamless benchmarking between classical NumPy-based solvers and PennyLane quantum simulators.
+3.  **Physical Discovery:** Quantified the limitations of classical mean-field theory (Lattice DFT) and demonstrated that Variational Quantum Algorithms can effectively capture the many-body correlation effects required to describe the Mott Transition.
+
+### 5.2 Future Outlook
+The completion of this "hello world" project provides the necessary technical and physical intuition to tackle the reproduction of the Phasecraft **Quantum Enhanced Density Functional Theory (QEDFT)** research. The next iteration of this work will focus on:
+
+- Implementing the `QiskitBackend` to compare performance across different quantum SDKs.
+- Exploring noise-robust optimizers (e.g., SPSA) to prepare for execution on **Near-term Intermediate Scale Quantum (NISQ)** hardware.
+- Scaling the methodology from the Hubbard Dimer to larger periodic lattices.
+
+In summary, this work demonstrates that quantum algorithms, even in the presence of variational optimization challenges, offer a physically superior path for materials science research where classical mean-field approximations are fundamentally insufficient.
+
+### 5.2 Future Outlook
+The completion of this project serves as a "Hello World" for general research in condensed matter physics, establishing the foundational logic required to simulate many-body systems.
+
+This work provides the necessary technical and physical intuition to tackle advanced quantum simulation projects. The next iteration of this work (continued as a personal project) will focus on:
+
+- Integrating the `QiskitBackend` to compare performance across different quantum SDKs.
+- Exploring noise-resilient optimizers (e.g., SPSA) to prepare for execution on **Near-term Intermediate Scale Quantum (NISQ)** hardware.
+- Scaling the methodology from the Hubbard Dimer to larger periodic lattices and more complex materials.
+
+In summary, this work demonstrates that quantum algorithms, even in the presence of variational optimization challenges, offer a physically superior path for materials science research where classical mean-field approximations are fundamentally insufficient.
